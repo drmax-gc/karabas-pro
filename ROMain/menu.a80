@@ -1,0 +1,480 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+MENU_MAIN_LOAD_PQDOS            EQU 0
+MENU_MAIN_LOAD_CPM              EQU 1
+MENU_MAIN_RUN_TRDOS48           EQU 3
+MENU_MAIN_RUN_TRDOS128          EQU 4
+MENU_MAIN_RUN_SINCLAIR48        EQU 6
+MENU_MAIN_RUN_SINCLAIR128       EQU 7
+MENU_MAIN_RUN_TEST              EQU 9
+
+MENU_TEST_RAM_TEST              EQU 0
+
+        STRUCT MENU
+margin          BYTE
+cur_attr        BYTE
+cur_mask        BYTE
+items           BYTE
+cur_item        BYTE
+items_ptr       WORD
+esc_func        WORD
+        ENDS
+
+ITEM_DIV        EQU #FF
+ITEM_TXT        EQU #00
+
+        STRUCT ITEM
+type            BYTE
+txt_ptr         WORD
+func_ptr        WORD
+        ENDS
+
+        STRUCT ITEM_OPT
+num             BYTE
+opt_pptr        WORD
+        ENDS
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+zx_prepare:
+        halt
+        call PALETTE.fadeinout
+        xor a : call RAM.fillPixPage
+        xor a : call RAM.fillAttrPage
+        halt
+        call PALETTE.zx
+        ld a,(KEYBOARD.lastkey)
+        cp KEY_SSENT
+        call z,turbo_off
+set_im1:di
+        ld a,#3F
+        ld i,a
+        im 1
+        ret
+;;::::::::::::::::::::::::::::::
+run_48k:
+        call zx_prepare
+        ld hl,.block_b
+        ld de,BUFF
+        push de
+        ld bc,.block_e - .block_b
+        ldir
+        ret
+.block_b
+        ld bc,CMR0
+        ld a,CMR0_ROM14 | CMR0_BLOCK
+        out (c),a
+        ld b,high CMR1
+        xor a
+        out (c),a
+
+        out (#FE),a
+        ld hl,#5AFF
+.lp     ld (hl),a
+        dec hl
+        bit 6,h
+        jr nz,.lp
+
+        rst 0
+.block_e
+;;::::::::::::::::::::::::::::::
+run_128k:
+        call zx_prepare
+        ld hl,.block_b
+        ld de,BUFF
+        push de
+        ld bc,.block_e - .block_b
+        ldir
+        ret
+.block_b
+        ld bc,CMR0
+        xor a
+        out (c),a
+        ld b,high CMR1
+        out (c),a
+
+        out (#FE),a
+        ld hl,#5AFF
+.lp     ld (hl),a
+        dec hl
+        bit 6,h
+        jr nz,.lp
+
+        rst 0
+.block_e
+;;::::::::::::::::::::::::::::::
+run_trdos48k:
+        call zx_prepare
+        ld hl,.block_b
+        ld de,BUFF
+        push de
+        ld bc,.block_e - .block_b
+        ldir
+        ret
+.block_b
+        ld bc,CMR0
+        ld a,CMR0_ROM14 | CMR0_BLOCK
+        out (c),a
+        ld b,high CMR1
+        xor a
+        out (c),a
+        ld l,a : ld h,a
+        push hl
+
+        out (#FE),a
+        ld hl,#5AFF
+.lp     ld (hl),a
+        dec hl
+        bit 6,h
+        jr nz,.lp
+
+        jp #3D2F
+.block_e
+;;::::::::::::::::::::::::::::::
+run_trdos128k:
+        call zx_prepare
+        ld hl,.block_b
+        ld de,BUFF
+        push de
+        ld bc,.block_e - .block_b
+        ldir
+        ret
+.block_b
+        ld bc,CMR0
+        ld a,CMR0_ROM14
+        out (c),a
+        ld b,high CMR1
+        xor a
+        out (c),a
+        ld l,a : ld h,a
+        push hl
+
+        out (#FE),a
+        ld hl,#5AFF
+.lp     ld (hl),a
+        dec hl
+        bit 6,h
+        jr nz,.lp
+
+        jp #3D2F
+.block_e
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+return_to_main:
+        call clear_test_window
+        jp main_loop_no_redraw
+
+exit_sound_test:
+        call clear_sound_test_window
+
+        DRAW_Window wnd_main
+        ld ix,mnu_main
+        call MENU.print_menu
+        call MENU.print_cursor
+
+        DRAW_Window wnd_test
+        jp open_test_menu
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+mnu_main        MENU 2, PAPER_BRIGHT_CYAN | INK_BRIGHT_YELLOW, #FF, 10, 0, itms_main, 0
+itms_main       ITEM ITEM_TXT, itm_main_txt0, load_cpm
+                ITEM ITEM_TXT, itm_main_txt1, load_boot
+                ITEM ITEM_DIV, itm_main_div0, 0
+                ITEM ITEM_TXT, itm_main_txt2, run_trdos48k
+                ITEM ITEM_TXT, itm_main_txt3, run_trdos128k
+                ITEM ITEM_DIV, itm_main_div1, 0
+                ITEM ITEM_TXT, itm_main_txt4, run_48k
+                ITEM ITEM_TXT, itm_main_txt5, run_128k
+                ITEM ITEM_DIV, itm_main_div2, 0
+                ITEM ITEM_TXT, itm_main_txt6, test_menu
+
+itm_main_txt0   DB MARK_LINK, LINK_MSG_LOADING, "CP/M system", 0
+itm_main_txt1   DB MARK_LINK, LINK_MSG_LOADING, "boot from SD",0
+itm_main_div0   DB 0
+itm_main_txt2   DB MARK_LINK, LINK_MSG_RUN_TRDOS, "48K",0
+itm_main_txt3   DB MARK_LINK, LINK_MSG_RUN_TRDOS, "128K",0
+itm_main_div1   DB 0
+itm_main_txt4   DB MARK_LINK, LINK_MSG_RUN_SINCLAIR, "48K",0
+itm_main_txt5   DB MARK_LINK, LINK_MSG_RUN_SINCLAIR, "128K",0
+itm_main_div2   DB 0
+itm_main_txt6   DB "Run Test&Tools Menu",0
+itm_main_txt7   DB "File Simplorer",0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+mnu_test        MENU 2, PAPER_BRIGHT_CYAN | INK_BRIGHT_YELLOW, #FF, 10, 0, itms_test, return_to_main
+itms_test       ITEM ITEM_TXT, itm_main_txt7, simplorer.start
+                ITEM ITEM_DIV, itm_test_div0,0
+                ITEM ITEM_TXT, itm_test_txt0, palette_test
+                ITEM ITEM_TXT, itm_test_txt1, keyboard_test
+                ITEM ITEM_TXT, itm_test_txt3, speed_test
+                ITEM ITEM_TXT, itm_test_txt4, rtc_test
+                ITEM ITEM_DIV, itm_test_div0, 0
+                ITEM ITEM_TXT, itm_test_txt5, sound_test
+                ITEM ITEM_DIV, itm_test_div0, 0
+                ITEM ITEM_TXT, itm_test_txt6, about
+                ;ITEM ITEM_TXT, itm_test_txt7, return_to_main
+
+itm_test_txt0   DB "Palette", MARK_LINK, LINK_MSG_TEST, 0
+itm_test_txt1   DB "Keyboard", MARK_LINK, LINK_MSG_TEST, 0
+itm_test_txt3   DB "CPU Speed", MARK_LINK, LINK_MSG_TEST, 0
+itm_test_txt4   DB "CMOS View", 0
+itm_test_div0   DB 0
+itm_test_txt5   DB "Sound", MARK_LINK, LINK_MSG_TEST, 0
+itm_test_div1   DB 0
+itm_test_txt6   DB "About",0
+itm_test_div2   DB 0
+itm_test_txt7   DB "Return to main menu",0
+
+mnu_sound       MENU 1, PAPER_BRIGHT_CYAN | INK_BRIGHT_YELLOW, #FF, 3, 0, itms_sound, exit_sound_test
+itms_sound      ITEM ITEM_TXT, itm_sound_txt0, covox_test
+                ITEM ITEM_TXT, itm_sound_txt1, ay_test
+                ITEM ITEM_TXT, itm_sound_txt2, beeper_test
+
+itm_sound_txt0  DB "Covox", MARK_LINK, LINK_MSG_TEST, 0
+itm_sound_txt1  DB "AY-3-8910", MARK_LINK, LINK_MSG_TEST, 0
+itm_sound_txt2  DB "Beeper", MARK_LINK, LINK_MSG_TEST, 0
+
+LINK_MSG_LOADING        EQU 0
+LINK_MSG_RUN_TRDOS      EQU 1
+LINK_MSG_RUN_SINCLAIR   EQU 2
+LINK_MSG_TEST           EQU 3
+LINK_MSG_NOW_PLAYING    EQU 4
+LINK_MSG_CHANNEL        EQU 5
+
+msg0            DB "Loading ", 0
+msg1            DB "Run TR-DOS ", 0
+msg2            DB "Run Sinclair ", 0
+msg3            DB " Test", 0
+msg4            DB "Now playing ", 0
+msg5            DB "Channel ", 0
+link_msg        DW msg0, msg1, msg2, msg3, msg4, msg5
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+test_menu:
+        DRAW_Window wnd_test
+        xor a
+        ld (mnu_test + MENU.cur_item),a
+        jr open_test_menu.jp
+
+open_test_menu:
+        DRAW_Window wnd_test
+.jp     ld ix,mnu_test
+        call MENU.menu
+
+        DRAW_Window wnd_main
+
+        ld ix,mnu_main
+        call MENU.print_menu
+        call MENU.print_cursor
+        jp open_test_menu
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        MODULE MENU
+fx      push af, ix
+        ld a,(KEYBOARD.cnt)
+        dec a
+        ld a,AYFX_KEYSKIP
+        jr z,.skip
+        ld a,AYFX_KEY
+.skip   ld e,1 : call AYFX.PlayChannel
+        pop ix, af
+        ret
+
+fx_ent  push af, ix
+        ld a,AYFX_ENTER : ld e,1 : call AYFX.PlayChannel
+        pop ix, af
+        ret
+
+fx_esc  push af, ix
+        ld a,AYFX_ESC : ld e,1 : call AYFX.PlayChannel
+        pop ix, af
+        ret
+
+menu:
+        call print_menu
+
+.loop_w_cursor
+        call print_cursor
+.loop   halt
+        call KEYBOARD.getKey
+        cp KEY_UP : call z,fx
+        jr z,.up
+        cp KEY_DOWN : call z,fx
+        jr z,.down
+        cp KEY_ENTER : call z,fx_ent
+        jr z,.exit
+        cp KEY_SSENT : call z,fx_ent
+        jr z,.exit
+        cp KEY_EDIT : call z,fx_esc
+        jr z,.escape
+        jr .loop
+
+.escape
+        ld hl,(ix + MENU.esc_func)
+        ld a,l : or h
+        jr z,.loop
+        jp (hl)
+
+.exit   ;call restore_cursor
+        ld a,(ix + MENU.cur_item)
+        call get_item_addr
+        ld de,3
+        add hl,de
+        ld a,(hl) : inc hl : ld h,(hl) : ld l,a
+        or h
+        jr z,.loop_w_cursor
+        jp (hl)
+
+.up     ld a,(ix + MENU.cur_item)
+        or a
+        jr nz,0F
+        ld a,(ix + MENU.items)
+0       dec a
+        ld b,a
+
+        call get_item_addr
+
+        ld a,(hl)
+        cp ITEM_DIV
+        jr nz,.nodiv
+        dec b
+        jr .nodiv
+
+.down   ld a,(ix + MENU.cur_item)
+        inc a
+        cp (ix + MENU.items)
+        jr nz,$+2+1
+        xor a
+        ld b,a
+
+        call get_item_addr
+
+        ld a,(hl)
+        cp ITEM_DIV
+        jr nz,.nodiv
+        inc b
+
+.nodiv  push bc
+        call restore_cursor
+        pop bc
+        ld (ix + MENU.cur_item),b
+        jp .loop_w_cursor
+
+get_item_addr:
+        ld c,a
+        ld de,(ix + MENU.items_ptr)
+        ;mul on 5 (item size)
+        add a,a
+        add a,a
+        add a,c
+        ld l,a
+        ld h,0
+        add hl,de
+        ret
+
+print_menu:
+        ld b,(ix + MENU.items)
+        xor a
+.lp     call print_menu_item
+        inc a
+        djnz .lp
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;  A - menu item number
+;; IX
+print_menu_item:
+        push af
+
+        push af
+        ld c,a
+        ld a,(win_x)
+        add a,1
+        ld e,a
+        ld (cur_x),a
+        ld a,(win_y)
+        add a,(ix + MENU.margin)
+        add a,c
+        ld d,a
+        ld (cur_y),a
+        call SCREEN.getaddr_sym
+        ld (screen_addr),hl
+        pop af
+
+        call get_item_addr
+
+        ld a,(hl) : inc hl      ;item type
+        ld e,(hl) : inc hl
+        ld d,(hl) : inc hl      ;text addr
+        ex de,hl
+
+        cp ITEM_DIV
+        call z,.divider
+
+        push bc
+        ld a,l : or h
+        call nz,strprnz
+        pop bc
+
+        pop af
+        ret
+
+.divider
+        push hl
+
+        ld a,(win_x)
+        ld e,a
+        ld a,(win_y)
+        add a,(ix + MENU.margin)
+        add a,c
+        ld d,a
+        call SCREEN.getaddr_sym
+
+        ld a,h
+        add a,4
+        ld h,a
+
+        set 5,h
+        ld a,(win_w)
+        ld c,a
+        ld a,#FF
+        ld e,a : ld d,a
+        call WINDOW.drawLine
+
+        pop hl
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+get_cursor_screenaddr:
+        ld a,(win_x)
+        ld e,a
+        ld a,(win_y)
+        add a,(ix + MENU.margin)
+        add a,(ix + MENU.cur_item)
+        ld d,a
+        jp SCREEN.getaddr_sym
+
+restore_cursor:
+        call get_cursor_screenaddr
+        ld a,(win_w)
+        dec a
+        ld c,a
+        ld a,(window_attr)
+        jp WINDOW.drawAttrBar
+
+print_cursor:
+        call get_cursor_screenaddr
+        ld a,(win_w)
+        dec a
+        ld c,a
+        ld a,(ix + MENU.cur_attr)
+        jp WINDOW.drawAttrBar
+
+        ENDMODULE
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+

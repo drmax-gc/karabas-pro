@@ -1,0 +1,61 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                   Test ROM for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                           (c)2021                          ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+CMR0            EQU #7FFD
+CMR0_SEG0       EQU #01
+CMR0_SEG1       EQU #02
+CMR0_SEG2       EQU #04
+CMR0_PLEKR      EQU #08
+CMR0_ROM14      EQU #10
+CMR0_BLOCK      EQU #20
+
+CMR1            EQU #DFFD
+CMR1_SEG3       EQU #01
+CMR1_SEG4       EQU #02
+CMR1_SEG5       EQU #04
+CMR1_SCO        EQU #08
+CMR1_NOROM      EQU #10
+CMR1_CPM        EQU #20
+CMR1_SCR        EQU #40
+CMR1_80DS       EQU #80
+
+        MODULE RAM
+fillPixPage:
+        ld hl,#8000
+        ld de,#8001
+        ld bc,#3FFF
+        ld (hl),a
+        ldir
+        ret
+
+fillAttrPage:
+        ld hl,#C000
+        ld de,#C001
+        ld bc,#3FFF
+        ld (hl),a
+        ldir
+        ret
+
+; set pixel page (#06)
+setPixPage:
+        ld bc,CMR1
+        ld a,CMR1_80DS | CMR1_CPM | CMR1_SCR | 0
+        out (c),a
+        ld b,high CMR0
+        ld a,CMR0_ROM14 | CMR0_PLEKR | 6
+        out (c),a
+        ret
+
+; set attr page (#3A)
+setAttrPage:
+        ld bc,CMR1
+        ld a,CMR1_80DS | CMR1_CPM | CMR1_SCR | 7
+        out (c),a
+        ld b,high CMR0
+        ld a,CMR0_ROM14 | CMR0_PLEKR | 2
+        out (c),a
+        ret
+        ENDMODULE
+

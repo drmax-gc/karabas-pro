@@ -1,0 +1,189 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        MACRO DOWN_HL_SYM
+        ld a,l : sub -32 : ld l,a
+        sbc a,a : and -8 : add h : ld h,a
+        ENDM
+
+        MACRO DOWN_DE_SYM
+        ld a,e : sub -32 : ld e,a
+        sbc a,a : and -8 : add d : ld d,a
+        ENDM
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        MODULE SCREEN
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; E - X coord
+;; D - Y coord
+gotoXY: ld a,e
+        ld (cur_x),a
+        ld a,d
+        ld (cur_y),a
+        call getaddr_sym
+        ld (screen_addr),hl
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; i:
+;;   DE - YX coords
+;; o:
+;;   HL - screen address
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+getaddr_sym:
+        ld a,d
+        and #18
+        srl e
+        ld h,#80
+        jr c,$+2+2
+        ld h,#A0
+        or h
+        ld h,a
+        ld a,d
+        and #07
+        rra
+        rra
+        rra
+        rra
+        or e
+        ld l,a
+        ret
+
+        ;next screen address
+next_sym:
+        ld a,h
+        bit 5,a
+        jr nz,$+2+1
+        inc l
+        xor #20
+        ld h,a
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+downHL  inc h
+        ld a,h
+        and 7
+        ret nz
+        DOWN_HL_SYM
+        ret
+;;
+downHLS:
+        ld a,l : add a,32 : ld l,a
+        ret nc
+        ld a,h : add a,8 : ld h,a
+        ret
+;;
+downDES:
+        ld a,e : add a,32 : ld e,a
+        ret nc
+        ld a,d : add a,8 : ld d,a
+        ret
+;;
+upHLS:
+        ld a,l : sub 32 : ld l,a
+        ret nc
+        ld a,h : sub 8 : ld h,a
+        ret
+;;
+upDES:
+        ld a,e : sub 32 : ld e,a
+        ret nc
+        ld a,d : sub 8 : ld d,a
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;HL - address
+;C - lenght of line
+line_fill_uneven:
+        push bc,hl
+
+        ld b,0
+
+        ld a,c
+        ld (._1+1),a
+        srl c
+        ld a,8
+.lp     ex af,af
+        push bc,hl
+
+        push bc,hl
+        call memsetz
+        pop hl,bc
+
+        set 5,h
+        inc l
+        call memsetz
+
+._1     ld a,0
+        rrca
+        jr nc,._2
+
+        res 5,h
+        ld (hl),0
+
+._2     pop hl,bc
+        inc h
+        ex af,af
+        dec a
+        jp nz,.lp
+        pop hl,bc
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;HL - source
+;DE - destination
+;C - lenght of line
+line_copy_uneven:
+        push bc,de,hl
+
+        ld b,0
+
+        ld a,c
+        ld (._1+1),a
+        srl c
+        ld a,8
+.lp     ex af,af
+        push bc,de,hl
+        
+        ;copy attr
+        set 6,h : set 6,d
+        ld a,(hl) : ld (de),a
+        res 6,h : res 6,d
+
+        push bc,de,hl
+        call memcpy
+        pop hl,de,bc
+
+        set 5,h
+        set 5,d
+        inc l
+        inc e
+
+        push de,hl
+        call memcpy
+
+._1     ld a,0
+        rrca
+        jr nc,._2
+
+        res 5,h
+        res 5,d
+        ld a,(hl)
+        ld (de),a
+
+._2     pop hl,de
+        ;copy attr
+        set 6,h : set 6,d
+        ld a,(hl) : ld (de),a
+
+        pop hl,de,bc
+        inc h
+        inc d
+        ex af,af
+        dec a
+        jp nz,.lp
+        pop hl,de,bc
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        ENDMODULE
+

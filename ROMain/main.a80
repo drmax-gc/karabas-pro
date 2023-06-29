@@ -1,0 +1,191 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+                DEFINE STR_VERSION "2.01"
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;for Unreal emulator (wrong BORDER)
+EMUL            EQU 1
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+BUFF            EQU #7000
+CPM_LOADER_ADDR EQU #7800
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;simplorer
+DIR_DEEP        EQU #7C00       ;size 512 bytes
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        INCLUDE "ports.a80"
+        INCLUDE "macros.a80"
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+begin:  di
+        ld sp,#8000
+        call start_prepare
+
+        if EMUL != 0
+                ld a,7
+        else
+                ld a,8
+        endif
+        out (#FE),a
+
+        ld a,PAPER_BRIGHT_WHITE
+        ld (window_attr),a
+        ld a,WND_NOSHADOW
+        ld (win_flags),a
+
+main_loop:
+        DRAW_Window wnd_main
+        ld ix,mnu_main
+        jp MENU.menu
+
+main_loop_no_redraw:
+        ld ix,wnd_main
+        call WINDOW.setWindowVariables
+        ld ix,mnu_main
+        jp MENU.menu.loop
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+start_prepare:
+        call turbo_save
+        call turbo_4x
+
+        xor a
+        ld (ISRflagJP),a
+
+        ld l,a : ld h,a
+.fill   ld (hl),a
+        inc l
+        jr nz,.fill
+
+        ld (hl),#C3
+        inc l
+        inc l
+        ld (hl),#01
+
+        ;ei:ret
+        ld l,#38
+        ld (hl),#FB
+        inc l
+        ld (hl),#C9
+
+        ;retn
+        ld l,#66
+        ld (hl),#ED
+        inc l
+        ld (hl),#75
+
+        ld hl,afxbank : call AYFX.Init
+        call setIM2
+
+        ;set full white palette
+        ei : halt
+        call PALETTE.white
+
+        call RAM.setPixPage
+        xor a
+        call RAM.fillPixPage
+        call RAM.setAttrPage
+        ld a,0b00111000
+        call RAM.fillAttrPage
+
+        call print_start_screen
+
+        ei : halt
+        ld hl,PALETTE.palette
+        call PALETTE.palset_333
+
+        ;jp turbo_restore
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+turbo_restore:
+        ld bc,PORT_TURBO
+        ld a,(turbo_state)
+        out (c),a
+        ret
+
+turbo_save:
+        ld bc,PORT_TURBO
+        in a,(c)
+        ld (turbo_state),a
+        ret
+
+turbo_4x:
+        ld bc,PORT_TURBO
+        ld a,M_TURBO_4X
+        out (c),a
+        ret
+
+turbo_off:
+        ld bc,PORT_TURBO
+        xor a
+        out (c),a
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+delay_mute:
+        ;delay for playing key sound
+        ld b,4 : halt : djnz $-1
+        jp AYFX.mute
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        INCLUDE "isr.a80"
+        INCLUDE "ram.a80"
+        INCLUDE "screen.a80"
+        INCLUDE "print.a80"
+        INCLUDE "numbers.a80"
+        INCLUDE "window.a80"
+        INCLUDE "menu.a80"
+        INCLUDE "cpm_load.a80"
+        INCLUDE "boot_load.a80"
+        INCLUDE "hobeta.a80"
+        INCLUDE "about.a80"
+        INCLUDE "palette.a80"
+        INCLUDE "rtc.a80"
+        INCLUDE "keyboard.a80"
+        INCLUDE "math.a80"
+        INCLUDE "speedtest.a80"
+        INCLUDE "rtc_test.a80"
+        INCLUDE "keyboard_test.a80"
+        INCLUDE "palette_test.a80"
+        ;INCLUDE "video_test.a80"
+        INCLUDE "sound_test.a80"
+        INCLUDE "simplorer-new.a80"
+        INCLUDE "include/AYFX/ayfxplay.a80"
+        INCLUDE "include/FAT32/fat32.asm"
+        INCLUDE "include/FAT32/strlist.asm"
+        INCLUDE "include/FAT32/sdcard_zc.asm"
+        INCLUDE "drivers/cf.a80"
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+afxbank INCBIN "include/AYFX/ROMain_new.afb"
+        INCLUDE "logo.a80"
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+sysvars INCBIN "include/bas_var.bin"
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+emptystr        DB "     ",0
+asciibuff       DS 32
+turbo_state     DB 0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+                        ; in: bcde = sector lba, hl -> dest
+                        ; out: zf reset = no error
+__read_sector           equ sdcard_zc.read_sector
+s_boot_b                db 'karabas_boot.$c', 0
+file                    fat32.FAT32_FILE
+;dir                     fat32.FAT32_DIR
+;dirent                  fat32.FAT32_DIRENT
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wnd_main WINDOW 4, 10, 12, 15, 0, PAPER_BRIGHT_WHITE | INK_BLACK, PAPER_CYAN | INK_BRIGHT_WHITE, hdr_main, 0
+wnd_test WINDOW 36,10, 12, 15, 0, PAPER_BRIGHT_WHITE | INK_BLACK, PAPER_CYAN | INK_BRIGHT_WHITE, hdr_test, 0
+
+hdr_main        DB MARK_CENTER, " Main menu", 0
+hdr_test        DB MARK_CENTER, " Test&Tools", 0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+code_end:
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        ALIGN 256
+font    INCBIN "resourses/866p.out.fnt"
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+                        ; required vars for fat32 to work
+fs                      fat32.FAT32_FS
+__entry_type            DB 0
+__fn_buffer             DS 256, 0
+filename_buffer         DS 256, 0
+end

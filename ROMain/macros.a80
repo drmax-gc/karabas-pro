@@ -1,0 +1,24 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        MACRO PRINT_Symbol symbol
+        ld a,symbol : call sym_prn
+        ENDM
+
+        MACRO PRINT_String str
+        ld hl,str : call strprnz
+        ENDM
+
+        MACRO DRAW_Window descriptor
+        ld ix,descriptor
+        call WINDOW.drawWindow
+        ENDM
+
+        MACRO DRAW_Frame screen_address, width, hight
+        ld hl,screen_address
+        ld bc,hight<<8 | width
+        call WINDOW.drawFrame
+        ENDM

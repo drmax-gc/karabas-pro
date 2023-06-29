@@ -1,0 +1,86 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2022                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+palette_test2:
+        di
+        ld a,#FF
+        call RAM.fillPixPage
+
+
+        ld hl,#E000
+        ld lx,0
+
+        exx
+        ld hl,#0000
+        ld de,#0100
+        ld bc,#003B
+        exx
+        ld b,2
+.ylp1   push bc
+        ld b,120
+.ylp0   push bc
+        push hl
+
+        exx
+        add hl,de
+        ld a,h
+        cp #10
+        jr c,1F
+        ld hl,0
+        ex de,hl
+        add hl,bc
+        ex de,hl
+        inc lx
+1
+        ld a,lx
+        and #1F
+        add a,low coltbl
+        ld ly,a
+        ld a,0
+        adc a,high coltbl
+        ld hy,a
+        ld a,(iy)
+        exx
+
+        ld d,a : ld e,a
+        ld c,32
+        call WINDOW.drawLine
+        pop hl
+        call SCREEN.downHL
+        pop bc
+        djnz .ylp0
+
+        exx
+        ld hl,0
+        ld de,1140
+        ld bc,-#3b
+        exx
+
+        pop bc
+        djnz .ylp1
+
+        ld a,0
+        out (#FE),a
+
+        ld hl,PALETTE.palette
+        ld de,PALETTE.palbuff
+        ld bc,32
+        ldir
+
+.loop   ei : halt : halt : halt : halt
+
+        ld bc,(PALETTE.scroll_palbuff)
+        call PALETTE.scroll_palbuff
+
+        ld hl,PALETTE.scroll_palbuff
+        call PALETTE.palset_333
+
+        jr .loop
+
+coltbl  DB 0,1,2,3,4,5,6,7
+        DB #40,#41,#42,#43,#44,#45,#46,#47
+        DB #46,#45,#44,#43,#42,#41,#40
+        DB 7,6,5,4,3,2,1,0,0

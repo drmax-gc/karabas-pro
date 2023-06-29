@@ -1,0 +1,46 @@
+2.01
+- added Simple Explorer aka Simplorer (sd navigation and run hobeta's code blocks)
+- modify ayfx
+- some bugfixes
+
+1.03
+- changed tr-dos rom file. (RAM disk start page at #37)
+
+1.02
+- fixed hobeta loader
+
+1.01
+- added basic48 system variables in hobeta's loader
+
+1.00
+- added loading karabas_boot.$c hobeta boot
+
+0.52
+- fixed squeak in palette test
+- keyboard ayfx volume down 
+
+0.51
+- fixed noise in covox&beeper tests
+
+0.5
+- added AY/YM test
+- added keyboard pressing sound fx
+
+0.495
+- optimize HDD/CF driver
+
+0.494
+- modify HDD/CF driver
+
+0.493
+- fixed cp/m loader for PROFI (?)
+
+0.492
+- fixed cp/m loader for PROFI (?)
+
+0.491
+- fixed cp/m loader for PROFI (?)
+
+0.49
+- added colorize pressed keys in Keyboard Test
+- added detect Symbol Shift pressed on enter ZX SPECTRUM modes (for turbo off)

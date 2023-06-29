@@ -1,0 +1,121 @@
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        DEVICE ZXSPECTRUM128
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+BUFF EQU #7000
+
+MBR_SIGNATURE_OFFSET                    EQU 510
+SIGNATURE_VALUE                         EQU #AA55
+
+TYPE_OFFSET            EQU 4
+
+FAT32_TYPECODE1                         EQU #0B
+FAT32_TYPECODE2                         EQU #0C
+PARTITION1_LBA_BEGIN_LOCATION           EQU 454
+PARTITION1_SIZE_LOCATION                EQU 458
+
+PARTITION1_TABLE_OFFSET                 EQU #01BE
+PARTITION2_TABLE_OFFSET                 EQU #01CE
+PARTITION3_TABLE_OFFSET                 EQU #01DE
+PARTITION4_TABLE_OFFSET                 EQU #01EE
+
+PARTITION1_TYPE_OFFSET                  EQU PARTITION1_TABLE_OFFSET + PARTITION_TABLE.type
+
+        STRUCT PARTITION_TABLE
+active          BYTE
+start_head      BYTE
+start_sect      BYTE
+start_cyl       BYTE
+type            BYTE
+end_head        BYTE
+end_sect        BYTE
+end_cyl         BYTE
+lba_begin       DWORD
+sector_num      DWORD
+        ENDS
+
+CMR0            EQU #7FFD
+CMR0_SEG0       EQU #01
+CMR0_SEG1       EQU #02
+CMR0_SEG2       EQU #04
+CMR0_PLEKR      EQU #08
+CMR0_ROM14      EQU #10
+CMR0_BLOCK      EQU #20
+
+CMR1            EQU #DFFD
+CMR1_SEG3       EQU #01
+CMR1_SEG4       EQU #02
+CMR1_SEG5       EQU #04
+CMR1_SCO        EQU #08
+CMR1_NOROM      EQU #10
+CMR1_CPM        EQU #20
+CMR1_SCR        EQU #40
+CMR1_80DS       EQU #80
+
+HEAD_CPM        EQU #00
+CYL_CPM         EQU #00
+SECT_CPM        EQU #00
+
+
+        STRUCT CPM_HDD
+sign    BYTE    ;less than #11
+zero1   BYTE
+id      BYTE    ;less than #80
+        ENDS
+
+        ORG #6000
+start:  di
+        ld sp,start
+
+        ld bc,CMR1
+        ld a,CMR1_CPM | CMR1_NOROM
+        out (c),a
+
+        ld hl,#38
+        ld (hl),#FB
+        inc hl
+        ld (hl),#C9
+
+        call CF.initialize
+        or a
+        jp nz,.error
+
+        ld a,1 : out (#FE),a
+        di : halt
+
+        ld hl,cf_buff
+        ld bc,#0000 : ld de,#03F0
+        ld a,1
+        call CF.read_data
+
+        ;validation
+
+        ld hl,#00FE
+        push hl
+        ld bc,#0000 : ld de,#03F5
+        ld a,1
+        call CF.read_data
+        pop hl
+        ld a,(hl)                       ;sector count
+
+        ld hl,#02FE
+        ld bc,#0000 : ld de,#03F6
+        call CF.read_data
+
+
+
+        ;jp 0x100
+
+.error
+        ld a,2 : out (#FE),a
+        di : halt
+
+        INCLUDE "cf.a80"
+end:
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        SAVEHOB "testCF-load.$C", "testCF.C", start, end-start
+        SAVESNA "testCF.sna", start
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+

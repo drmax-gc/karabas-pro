@@ -1,0 +1,65 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+video_test:
+        di
+        call setIM2_C9
+        ei : halt : call PALETTE.clear
+
+        call RAM.setPixPage
+        ld a,#FF : call RAM.fillPixPage
+
+        call RAM.setAttrPage
+        xor a : call RAM.fillAttrPage
+
+        call print_columns
+        ld hx,0
+        call print_columns.jp
+
+        ei : halt : call PALETTE.zx
+
+.loop   ei : halt
+        xor a
+        out (#FE),a
+
+        ld b,128+64
+        call delay_192t
+        
+        ld a,7
+        out (#FE),a
+        jp .loop
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+print_columns:
+        ld hl,#C000
+        ld hx,2
+.jp     ld lx,120
+.loop   ld d,l
+        ld c,7
+        ld e,8
+1       ld b,4
+3       ld a,b
+        cp hx
+        jr nz,2F
+        ld a,c
+        xor #40
+        ld c,a
+2       set 5,h
+        ld (hl),c
+        res 5,h
+        ld (hl),c
+        inc l
+        djnz 3B
+        res 6,c
+        dec c
+        dec e
+        jr nz,1B
+        ld l,d
+        call SCREEN.downHL
+        dec lx
+        jr nz,.loop
+        ret

@@ -1,0 +1,32 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+PORT_TURBO      EQU #028B
+M_TURBO_OFF     EQU 0b00000000
+M_TURBO_2X      EQU 0b00100000
+M_TURBO_4X      EQU 0b01000000
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+; D7 - IO mode/BSR mode
+; D6 \ 
+; D5 | Mode selection
+; D4 - Port A (1-Input/0-Output)
+; D3 - Port C upper (1-Input/0-Output)
+; D2 - Mode selection
+; D1 - Port B (1-Input/0-Output)
+; D0 - Port C lower (1-Input/0-Output)
+
+I8255_PORT_A    EQU #1F
+I8255_PORT_B    EQU #3F
+I8255_PORT_C    EQU #5F
+I8255_CTRL      EQU #7F
+
+I8255_CTRL_PORT_A       EQU 0b00010000
+I8255_CTRL_PORT_B       EQU 0b00000010
+I8255_CTRL_PORT_Cu      EQU 0b00001000
+I8255_CTRL_PORT_Cl      EQU 0b00000001
+I8255_CTRL_MODE_IO      EQU 0b10000000
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+

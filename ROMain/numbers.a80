@@ -1,0 +1,129 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; DEHL - 32bit NUMBER
+;; IX - ASCII BUFFER
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+decasc32:
+    push de
+    exx
+    pop hl
+    exx
+
+    ld c,#00
+
+;; 10^9
+    exx
+    ld de,#3B9A        ;Hi
+    exx
+    ld de,#CA00        ;Lo
+    call decasc32_dig
+
+;; 10^8
+    exx
+    ld de,#05F5         ;Hi
+    exx
+    ld de,#E100         ;Lo
+    call decasc32_dig
+
+;; 10^7
+    exx
+    ld de,#0098         ;Hi
+    exx
+    ld de,#9680         ;Lo
+    call decasc32_dig
+
+;; 10^6
+    exx
+    ld de,15            ;Hi
+    exx
+    ld de,4240          ;Lo
+    call decasc32_dig
+
+;; 10^5
+    exx
+    ld de,#1            ;Hi
+    exx
+    ld de,#86A0         ;Lo
+    call decasc32_dig
+
+decasc16_:
+;; 10^4
+    exx
+    ld de,#0            ;Hi
+    exx
+    ld de,10000         ;Lo
+    call decasc32_dig
+
+;; 10^3
+    ld de,1000          ;Lo
+    call decasc32_dig
+
+decasc8_:
+;; 10^2
+    ld de,100           ;Lo
+    call decasc16_dig
+
+;; 10^1
+    ld de,10            ;Lo
+    call decasc16_dig
+
+    ld a,l
+    or #30
+    ld (ix + 0),a
+    ld (ix + 1),0
+    ret
+;;
+decasc8:
+    ld c,0
+    jr decasc8_
+decasc16:
+    ld c,0
+    exx
+    ld hl,0
+    exx
+    jr decasc16_
+;;
+decasc16_dig:
+    ld a,#30
+    or a
+0   sbc hl,de
+    jr c,1F
+    inc a
+    inc c
+    jr 0B
+1   add hl,de
+    inc c
+    dec c
+    ret z
+    ld (ix + 0),a
+    inc ix
+    ret
+;;
+decasc32_dig:
+    ld a,#30
+    or a
+0   sbc hl,de
+    exx
+    sbc hl,de
+    exx
+    jr c,1F
+    inc a
+    inc c
+    jr 0B
+1   add hl,de
+    exx
+    adc hl,de
+    exx
+    inc c
+    dec c
+    ret z
+    ld (ix + 0),a
+    inc ix
+    ret
+

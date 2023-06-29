@@ -1,0 +1,176 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+load_cpm:
+        call clear_main_window : call clear_test_window
+        DRAW_Window wnd_load
+
+        ld hl,txt_init_cf : call strprnz
+
+        call set_im1
+
+        call CF.initialize
+        ld hl,txt_ok
+        or a
+        jr z,.ok
+        ld hl,txt_failed : call strprnz
+        jp .exit
+
+.ok     call strprnz
+
+        PRINT_String txt_name_cf
+        
+        ld hl,cf_buff + CF.MODEL_NUMBER_OFFSET + 40
+        ld (hl),0
+
+        PRINT_String cf_buff + CF.MODEL_NUMBER_OFFSET
+
+        PRINT_String txt_cf_chs
+        ld hl,(CF.cylinders) : call cf_prn_number.n16
+
+        ld a,(CF.number_of_heads) : call cf_prn_number
+        ld a,(CF.sector_per_track) : call cf_prn_number
+
+        PRINT_String txt_cf_size
+        call cf_calc_size
+        ld ix,asciibuff : call decasc32
+        PRINT_String asciibuff
+        PRINT_String txt_cf_mb
+
+        ld hl,cf_buff : ld bc,#0000 : ld de,#03F0 : call CF.read_data
+        jp c,error
+
+        ld a,(cf_buff)
+        cp #10
+        jp nz,.nocpm
+        ld a,(cf_buff + 2)
+        cp #3F
+        jr nz,.nocpm
+
+        PRINT_String txt_detect
+        PRINT_String cf_buff + 16
+        PRINT_String txt_hold_space
+
+        ;delay
+        ld b,#40 : ei : halt : djnz $-1
+
+        ;wait while SPACE hold
+.nospace
+        halt
+        ld a,#7F : in a,(#FE) : rra
+        jr nc,.nospace
+
+        call PALETTE.clear
+
+        ld bc,CMR0
+        ld a,#19
+        out (c),a
+        ld b,high CMR1
+        ld a,#B8
+        out (c),a
+
+        call set_im1
+
+        ;copy and run loader block
+        ld hl,.block_b
+        ld de,CPM_LOADER_ADDR
+        push de
+        ld bc,.block_e - .block_b
+        ldir
+        ret
+
+.nocpm  PRINT_String txt_not_detect
+.exit   ld b,#80 : ei : halt : djnz $-1
+        call clear_load_window
+        call setIM2
+        jp main_loop
+
+.block_b
+        di
+        ld sp,#8000
+
+        ld hl,#80FE
+        push hl
+
+        push hl
+        ld bc,#0000 : ld de,#03F5 : call CF.read_data
+        jp c,error
+        pop hl
+        ld a,(hl)                       ;sector count
+
+        ld hl,#82FE
+        ld bc,#0000 : ld de,#03F6
+.ldlp   push af
+        call CF.read_data
+        jp c,error
+        pop af
+        inc de
+        dec a
+        jr nz,.ldlp
+
+        pop de
+        or a
+        sbc hl,de
+        ld c,l : ld b,h
+        ex de,hl
+        ld de,#00FE
+        ldir
+        jp #0100
+.block_e
+
+error:  ld bc,#DFFD
+        ld de,#0A87
+        out (c),e
+        ld b,#7F
+        out (c),d
+        ld hl,#C000
+        ld de,#C001
+        ld bc,#3FFF
+        ld (hl),#C2
+        ldir
+        di : halt
+
+cf_prn_number:
+        push af
+        PRINT_String txt_cf_div
+        pop af
+        ld l,a : ld h,0
+.n16    ld ix,asciibuff : call decasc16
+        ld hl,asciibuff : jp strprnz
+
+;C*H*S/2048
+cf_calc_size:
+        ld a,(CF.number_of_heads)
+        ld e,a
+        ld a,(CF.sector_per_track)
+        ld c,a
+        ld b,0 : ld d,b
+        call MATH.mul16
+        ex de,hl
+        ld bc,(CF.cylinders)
+        call MATH.mul16
+
+        ;divide on 2048
+        ld b,8+3
+.div    rr d : rr e : rr h: rr l
+        djnz .div
+        ld d,0
+        ret
+
+wnd_load WINDOW 6,14, 26, 12, 0, PAPER_BLACK | INK_BRIGHT_WHITE, PAPER_BRIGHT_WHITE | INK_BLACK, hdr_load, 0
+hdr_load        DB MARK_CENTER, "Loading...", 0
+txt_init_cf     DB MARK_INK, INK_BLUE, "\nInitialize CF... ", 0
+txt_name_cf     DB MARK_INK, INK_BLUE, "CF info:\n", MARK_INK, INK_BLUE
+                DB "   Name:", MARK_INK, INK_MAGENTA, 0
+txt_cf_chs      DB MARK_INK, INK_BLUE, "\n    CHS:", MARK_INK, INK_MAGENTA, 0
+txt_cf_size     DB MARK_INK, INK_BLUE, "\n   Size:", MARK_INK, INK_MAGENTA, 0
+txt_cf_mb       DB " Mbytes\n",0
+txt_cf_div      DB ' ',0
+txt_ok          DB MARK_INK, INK_GREEN, "Ok\n", 0
+txt_failed      DB MARK_INK, INK_RED, "Failed", 0
+txt_detect      DB MARK_INK, INK_BLUE, "\nDetect CP/M partition:", MARK_INK, INK_MAGENTA, 0
+txt_not_detect  DB MARK_INK, INK_RED, "\nCP/M partition not found!", 0
+txt_hold_space  DB MARK_INK, INK_WHITE, "\n\n", MARK_CENTER, "Hold", MARK_INK, INK_BRIGHT_BLACK, " SPACE", MARK_INK, INK_WHITE, " for pause", 0

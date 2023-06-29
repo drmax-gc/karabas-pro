@@ -1,0 +1,260 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+palette_test:
+        ;delay for playing key sound
+        ld b,4 : halt : djnz $-1
+        call AYFX.mute
+
+        call setIM2_C9
+
+        ei : halt
+        call PALETTE.clear
+
+        call RAM.setPixPage
+        ld a,#00
+        call RAM.fillPixPage
+
+        call RAM.setAttrPage
+        ld a,0b00000000
+        call RAM.fillAttrPage
+
+        call fillpall
+
+        call print_logo_test_pal
+
+        call turbo_save
+
+.loop
+        ld ix,274
+        ei : halt
+
+        ld hl,0
+
+        ld b,36
+        call delay_192t
+
+        ld a,#7E
+        ld c,a
+.pal1_offs EQU $+1
+        ld hl,#7000
+        ld e,#06
+        exx
+        ld c,a
+.pal2_offs EQU $+1
+        ld hl,#7000+32
+        ld e,#07
+        exx
+.ylp
+;-------
+        ld b,(hl)       ;7t
+        inc hl          ;6t
+        ld a,e          ;4t
+        or (hl)         ;7t
+        exa             ;4t
+        out (#FE),a     ;11t
+        out (c),a       ;12t
+        exa             ;4t
+        out (#FE),a     ;11t
+        out (c),a       ;12t
+        exx             ;4t
+
+        ld b,(hl)       ;7t
+        inc hl          ;6t
+        ld a,e          ;4t
+        or (hl)         ;7t
+        exa             ;4t
+        inc hl          ;6t
+        ld a,h          ;4t
+        and #73         ;7t
+        ld h,a          ;4t
+
+        exx             ;4t
+
+        inc hl          ;6t
+        ld a,h          ;4t
+        and #73         ;7t
+        ld h,a          ;4t
+
+        dec ix          ;10t
+        ld a,hx         ;8t
+        or lx           ;8t
+        jp nz,.ylp      ;10t
+
+        ld hl,(.pal1_offs)
+        inc hl
+        inc hl
+        ld a,h
+        and #73
+        ld h,a
+        ld (.pal1_offs),hl
+
+        ld hl,(.pal2_offs)
+        inc hl
+        inc hl
+        ld a,h
+        and #73
+        ld h,a
+        ld (.pal2_offs),hl
+
+        ld bc,PORT_TURBO
+        ld a,M_TURBO_OFF
+        out (c),a
+
+        ;if ESC key pressed?
+        ld a,#FE
+        in a,(#FE)
+        rrca
+        jp c,.loop
+        ld a,#F7
+        in a,(#FE)
+        rrca
+        jp c,.loop
+
+        ld bc,#FF7E
+        ld a,#8F
+        out (#FE),a
+        out (c),a
+
+        ld b,#FF
+        ld a,#0E
+        out (#FE),a
+        out (c),a
+
+        ld hl,paltest_fade_tbl
+        push hl
+
+        ld d,5
+.fade_lp0
+        ld b,3
+        ei : halt
+        djnz $-2
+
+        ld a,(hl) : inc hl
+        ld e,(hl) : inc hl
+        cpl : ld b,a
+        ld a,#0F
+        or e
+        out (#FE),a
+        out (c),a
+
+        dec d
+        jr nz,.fade_lp0
+
+        pop hl
+
+        ld d,5
+.fade_lp1
+        ld b,2
+        ei : halt
+        djnz $-2
+
+        ld a,(hl) : inc hl
+        ld e,(hl) : inc hl
+        cpl : ld b,a
+        ld a,#0E
+        or e
+        out (#FE),a
+        out (c),a
+
+        ld a,7 | 8
+        out (#FE),a
+
+        dec d
+        jr nz,.fade_lp1
+
+        call turbo_restore
+        call start_prepare
+
+        DRAW_Window wnd_main
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+paltest_fade_tbl
+        DB 0b00000000,#00
+        DB 0b00100100,#80
+        DB 0b01001001,#00
+        DB 0b01101101,#80
+        DB 0b10010010,#00
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+; b - count
+delay_192t:
+;192-14=178t
+.lp
+        DS 8,#E3                ;ex (sp),hl (19t each)
+                                ;19*8 = 152t
+                                ;178-152=26t
+        cpi                     ;16t
+        ld hl,0                 ;10t
+        dec b                   ;4t
+        jp nz,.lp               ;10t
+        ret                     ;10t
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+fillpall:
+        ld hl,#7000
+        ld e,#FF
+.lp     ld a,r
+        xor e
+        sub c
+        rrca
+        xor e
+        ld e,a
+        sub l
+        rlca
+        sub e
+        ld (hl),a
+        inc hl
+        ld a,e
+        rrca
+        xor l
+        sub c
+        rrca
+        and 0b00000011
+        or 0b00001000
+        ld (hl),a
+        inc hl
+        ld a,h
+        cpl
+        and 7
+        jr nz,.lp
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+print_logo_test_pal:
+        ld hl,#A840
+        ld de,karabas_logo_ansi
+
+        ld c,8
+.ylp    push hl
+        ld b,64
+.xlp    push bc
+        ld a,(de) : inc de
+        cp #FA
+        jr z,.skip0
+        cp #FE
+        jr nz,.skip1
+.skip0  ld a,#20
+.skip1
+        push de
+        ld c,0b00000001
+        call sym_prn
+        pop de
+
+        pop bc
+        djnz .xlp
+        pop hl
+
+        call SCREEN.downHLS
+
+        dec c
+        jr nz,.ylp
+        ret

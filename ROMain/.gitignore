@@ -1,0 +1,8 @@
+.backup/
+obj/
+sjasm*/
+*.exe
+*.hdd
+*.zip
+*.sna
+*.sublime-*

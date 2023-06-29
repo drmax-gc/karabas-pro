@@ -1,0 +1,362 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                   Test ROM for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                           (c)2021                          ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; print zero-terminated string
+;; i:
+;;   HL - string address
+;;   DE - YX coords
+;; string format:
+;;      0x07 (BYTE) - ink color (\a)
+;;      0x08 (BYTE) - paper color (\b)
+;;      0x09 (BYTE) - shift right on (BYTE) symbols (\t)
+;;      0x0C - invert attribute (\f)
+;;      0x0D - carriage return (\r)
+;;      0x0A - line feed (\n) (with CR)
+;;      0x0E - center align string
+;;      0x0F - right align string
+;;      0xFE (BYTE) - string link
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+strprnz:
+        ld a,(hl)
+        or a
+        ret z
+        inc hl
+        cp #07                  ; \a
+        jp z,strprnz_ink
+        cp #08                  ; \b
+        jp z,strprnz_paper
+        cp #09                  ; \t
+        jp z,strprnz_tab
+        cp #0A                  ; \n
+        jp z,strprnz_n
+        cp #0C                  ; \f
+        jp z,strprnz_invert
+        cp #0D                  ; \r
+        jp z,strprnz_r
+        cp #0E                  ; center align
+        jp z,strprnz_center
+        cp #0F                  ; right align
+        jp z,strprnz_right
+        cp #FE                  ; string link
+        jp z,strprnz_link
+
+        push hl
+        ld l,a
+        ld a,(sym_attr)
+        ld c,a
+        ld a,l
+        ld hl,(screen_addr)
+        call sym_prn
+        ld (screen_addr),hl
+        pop hl
+        jp strprnz
+
+strprnz_ink:
+        ld a,(win_attr)
+        and #B8
+        ld c,a
+        ld a,(hl)
+        inc hl
+        and #47
+        or c
+        ld (sym_attr),a
+        jp strprnz
+
+strprnz_paper:
+        ld a,(sym_attr)
+        and #47
+        ld c,a
+        ld a,(hl)
+        inc hl
+        and #B8
+        or c
+        ld (sym_attr),a
+        ld (bg_attr),a
+        jp strprnz
+
+strprnz_invert:
+        ld a,(sym_attr)
+        ld c,a
+        and #07
+        rla
+        rla
+        rla
+        ld (sym_attr),a
+        ld a,c
+        rra
+        rra
+        rra
+        ld c,a
+        ld a,(sym_attr)
+        or c
+        ld (sym_attr),a
+        ld (bg_attr),a
+        jp strprnz
+
+strprnz_n:
+        ld a,(win_h)
+        ld b,a
+        ld a,(win_y)
+        add a,b
+        ld b,a
+        ld a,(cur_y)
+        inc a
+        ;cp b
+        ;call nc,strprnz_scrollup
+        ld (cur_y),a
+        ld d,a
+strprnz_r:
+        ld a,(win_x)
+        ld (cur_x),a
+        ld e,a
+strprnz_loop:
+        push hl
+        call SCREEN.getaddr_sym
+        ld (screen_addr),hl
+        pop hl
+        jp strprnz
+
+strprnz_tab:
+        ld a,(hl)
+        inc hl
+        add a,e
+        ld e,a
+        ld (cur_x),a
+        jp strprnz_loop
+
+strprnz_center:
+        push hl
+        call strlen
+        pop hl
+        ld a,(win_w)
+        add a,a
+        sub b
+        srl a
+        ld b,a
+        ld a,(win_x)
+        add a,b
+        ld e,a
+        ld (cur_x),a
+        jp strprnz_loop
+
+strprnz_right:
+        push hl
+        call strlen
+        pop hl
+        ld a,(win_w)
+        add a,a
+        ld c,a
+        ld a,(win_x)
+        sub 2
+        add a,c
+        sub b
+        ld e,a
+        ld (cur_x),a
+        jp strprnz_loop
+
+strprnz_link:
+        ld a,(hl)
+        inc hl
+        push hl
+        ld l,a
+        ld h,#00
+        add hl,hl
+        ld bc,(linked_ptr)
+        add hl,bc
+        ld a,(hl)
+        inc hl
+        ld h,(hl)
+        ld l,a
+        or h
+        call nz,strprnz
+        pop hl
+        jp strprnz
+
+strprnlen:
+0       ld a,(hl)
+        inc hl
+        or a
+        ret z
+        push bc
+        ld bc,(sym_attr)
+        push hl
+        call sym_prn
+        ld a,e
+        ld (cur_x),a
+        pop hl
+        pop bc
+        djnz 0B
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; i:
+;;  HL - string address
+;; o:
+;;  B - string lenght
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+strlen:
+        ld b,#FF
+1       ld a,(hl)
+        inc hl
+
+;; skip codes
+        cp #07
+        jr z,2F
+        cp #08
+        jr z,2F
+        cp #09
+        jr z,6F
+        cp #0C
+        jr z,2F
+        cp #0E
+        jr z,4F
+        cp #0F
+        jr z,4F
+        cp #FE
+        jr z,3F
+
+        inc b
+4       cp #0A
+        ret z
+        or a
+        jr nz,1B
+        ret
+
+2       inc hl
+        jr 1B
+5       inc hl
+        inc hl
+        jr 1B
+6       ld a,(hl)
+        inc hl
+        add a,b
+        ld b,a
+        jr 1B
+
+;; linked message
+3       dec b
+        ld a,(hl)
+        inc hl
+        push hl
+        ld l,a
+        ld h,#0
+        add hl,hl
+        push bc
+        ld bc,(linked_ptr)
+        add hl,bc
+        pop bc
+        ld a,(hl)
+        inc hl
+        ld h,(hl)
+        ld l,a
+        call 1B
+        pop hl
+        jr 1B
+
+;;::::::::::::::::::::::::::::::
+;; i - HL - screen address
+;;      A - symbol
+;;      C - color
+;; o - HL - next screen addr
+;;::::::::::::::::::::::::::::::
+sym_prn:
+        push hl
+        exx
+        ld l,a
+        ld h,high font
+        pop de
+
+        DUP 7
+        ld a,(hl)
+        ld (de),a
+        inc h
+        inc d
+        EDUP
+        ld a,(hl)
+        ld (de),a
+
+        exx
+        ld a,c
+        exx
+.attr
+        set 6,d
+        DUP 7
+        ld (de),a
+        dec d
+        EDUP
+        ld (de),a
+
+        exx
+
+        ;next screen address
+        ld a,h
+        bit 5,a
+        jr nz,$+2+1
+        inc l
+        xor #20
+        ld h,a
+        ret
+
+attr_prn:
+;;::::::::::::::::::::::::::::::
+;; i - HL - screen address
+;;      A - color
+;; o - HL - next screen addr
+;;::::::::::::::::::::::::::::::
+        push hl
+        exx
+        pop de
+        exa
+        ld a,d
+        add a,7
+        ld d,a
+        exa
+        jp sym_prn.attr
+
+;;::::::::::::::::::::::::::::::
+;; i - HL - screen address
+;;      A - symbol
+;; o - HL - next screen addr
+;;::::::::::::::::::::::::::::::
+sym_prn_4:
+        push hl
+        exx
+        ld l,a
+        ld h,high font
+        pop de
+
+        ld a,d : add a,4 : ld d,a
+
+        DUP 4
+        ld a,(hl)
+        cpl
+        ld (de),a
+        inc h
+        inc d
+        EDUP
+
+        DOWN_DE_SYM
+
+        DUP 4
+        ld a,(hl)
+        cpl
+        ld (de),a
+        inc h
+        inc d
+        EDUP
+
+        exx
+
+        ;next screen address
+        ld a,h
+        bit 5,a
+        jr nz,$+2+1
+        inc l
+        xor #20
+        ld h,a
+        ret

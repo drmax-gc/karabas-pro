@@ -1,0 +1,111 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+rtc_test:
+        call turbo_save
+        call turbo_4x
+
+        call clear_test_window
+        call clear_main_window
+
+        call turbo_4x
+
+        DRAW_Window wnd_rtc_test
+
+        ld hl,BUFF : ld bc,0
+        call RTC.geti
+
+        ld a,(wnd_rtc_test + WINDOW.x)
+        add a,2
+        ld e,a
+        ld a,(wnd_rtc_test + WINDOW.y)
+        add a,2
+        ld d,a
+        call SCREEN.gotoXY
+
+        ld (rtc_test_addr),hl
+
+        ld iy,BUFF
+        ld b,16
+.lpy    push bc
+        push hl
+
+        ld a,16
+        sub b
+        add a,a : add a,a : add a,a : add a,a
+        ld c,0b10111001
+        call prn_hex8
+        ld a,' '
+        call sym_prn
+        ld a,':'
+        call sym_prn
+        ld a,' '
+        call sym_prn
+
+        ld b,16
+.lpx    push bc
+        bit 0,b
+        ld c,0b10111100
+        jr z,.odd
+        ld c,0b10111110
+.odd    ld a,(iy) : inc iy
+        call prn_hex8
+        ld a,' '
+        call sym_prn
+        pop bc
+        djnz .lpx
+        pop hl
+        call SCREEN.downHLS
+        pop bc
+        djnz .lpy
+
+.waitesc
+        halt
+        call rtc_test_update
+        call KEYBOARD.keyin
+        cp KEY_EDIT
+        jr nz,.waitesc
+
+        jp clear_rtc_window
+
+rtc_test_update:
+rtc_test_addr EQU $+1
+        ld hl,#2121
+        ld b,5
+.tab    call SCREEN.next_sym
+        djnz .tab
+
+        ld c,0
+        ld ix,BUFF
+.lp     push bc
+        ld a,(ix)
+        call RTC.get
+        cp (ix)
+        jr z,.next
+        ld (ix),a
+        bit 0,c
+        ld c,0b10111100
+        jr z,.odd
+        ld c,0b10111110
+.odd    call prn_hex8
+        pop bc
+        ret
+
+.next   call SCREEN.next_sym
+        call SCREEN.next_sym
+        call SCREEN.next_sym
+        inc ix
+
+        pop bc
+        inc c
+        ld a,c
+        cp 10
+        jr nz,.lp
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wnd_rtc_test            WINDOW 4, 10, 28, 19, 0, PAPER_BLACK | INK_BRIGHT_WHITE, PAPER_BRIGHT_WHITE | INK_BLACK, hdr_txt_rtc_test, 0
+hdr_txt_rtc_test        DB MARK_CENTER, "CMOS View", 0

@@ -1,0 +1,26 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        DEVICE ZXSPECTRUM128
+
+        ORG #0000
+        di
+        im 1
+        ld hl,#8000
+        ld sp,hl
+        push hl
+        ex de,hl
+        ld hl,packed_data
+packer_begin
+        INCLUDE "include/dzx0_standard.asm"
+packer_end
+
+packed_data
+        INCBIN "obj/ROMain.zx0"
+data_end
+        DS #4000 - data_end, #FF
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        SAVEBIN "obj/ROMain.bin", 0, #4000

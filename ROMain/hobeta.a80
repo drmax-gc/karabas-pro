@@ -1,0 +1,52 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        STRUCT HOBETA
+filename        DS 8
+type            DB 0
+start           DW 0
+length          DW 0
+zero            DB 0
+secsize         DB 0
+checksum        DW 0
+        ENDS
+
+        MODULE HOBETA
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; in:
+;;      HL -> hobeta header
+;; out:
+;;      DE -> checksum
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+summ:
+        ;ix -> checksum
+        ld ix,0
+        ;bc -> counter
+        ld bc,0
+        ;*257
+.lp	ld e,(hl) : inc hl
+        ld d,e
+        ;+counter
+        ex de,hl
+        add hl,bc
+	ex de,hl
+        ;+checksumm
+        add ix,de
+        inc c
+        ld a,c
+        cp 15
+        jr nz,.lp
+        push ix : pop de
+        ret
+
+is_hobeta:
+        call summ
+        ld c,(hl) : inc hl
+        ld b,(hl)
+        ex de,hl
+        or a : sbc hl,bc
+        ret
+        ENDMODULE

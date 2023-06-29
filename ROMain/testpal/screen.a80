@@ -1,0 +1,70 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                   Test ROM for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                           (c)2021                          ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        MACRO DOWN_HL_SYM
+        ld a,l : sub -32 : ld l,a
+        sbc a,a : and -8 : add h : ld h,a
+        ENDM
+
+        MACRO DOWN_DE_SYM
+        ld a,e : sub -32 : ld e,a
+        sbc a,a : and -8 : add d : ld d,a
+        ENDM
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        MODULE SCREEN
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; E - X coord
+;; D - Y coord
+gotoXY:
+        ld a,e
+        ld (cur_x),a
+        ld a,d
+        ld (cur_y),a
+        call getaddr_sym
+        ld (screen_addr),hl
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; i:
+;;   DE - YX coords
+;; o:
+;;   HL - screen address
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+getaddr_sym:
+        ld a,d
+        and #18
+        srl e
+        ld h,#80
+        jr c,$+2+2
+        ld h,#A0
+        or h
+        ld h,a
+        ld a,d
+        and #07
+        rra
+        rra
+        rra
+        rra
+        or e
+        ld l,a
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+down_hl_line:
+        inc h
+        ld a,h
+        and 7
+        ret nz
+down_hl_sym:
+        ld a,l : add a,32 : ld l,a
+        ret nc
+        ld a,h : add a,8 : ld h,a
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        ENDMODULE
+

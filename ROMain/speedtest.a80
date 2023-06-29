@@ -1,0 +1,251 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+SPEEDTEST_XX_COLOR      EQU 0b10111010
+SPEEDTEST_RULER_COLOR   EQU 0b10111110
+SPEEDTEST_BAR_COLOR     EQU 0b01101101
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+hdr_txt_speedtest       DB MARK_CENTER, "CPU Speed Test", 0
+wnd_txt_speedtest       DB MARK_INK, INK_RED, "CPU", MARK_INK, INK_YELLOW, " tacts:", MARK_INK, INK_CYAN, 0
+wnd_speedtest
+        WINDOW 0, 14, 31, 8, 0, PAPER_BLACK | INK_BRIGHT_WHITE, PAPER_BRIGHT_WHITE | INK_BLACK, hdr_txt_speedtest, 0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+speed_test:
+        call clear_test_window
+        call clear_main_window
+
+        DRAW_Window wnd_speedtest
+
+        ld a,(wnd_speedtest + WINDOW.x)
+        inc a
+        ld e,a
+        ld a,(wnd_speedtest + WINDOW.y)
+        add a,5
+        ld d,a
+        call SCREEN.gotoXY
+        ld (rlraddr),hl
+        call SCREEN.downHLS
+        ld (pgsaddr),hl
+
+        ld a,(win_w) : dec a : ld c,a
+        ld a,SPEEDTEST_BAR_COLOR
+        call WINDOW.drawAttrBar
+
+        ld hl,(rlraddr)
+        call drawRuler
+        call printX
+
+speed_test_loop:
+        xor a
+        ld (ISRflagJP),a
+        halt
+        ld e,a : ld d,a
+        dec a
+        ld (ISRflagJP),a
+        ld iy,speed_test_isr_exit
+;;
+.spdlp  inc de          ;6t
+        jp .spdlp       ;10t
+;;
+pgsaddr DW 0
+sxxaddr DW 0
+rlraddr DW 0
+spdtiks DW 0
+oldtiks DW 0
+spdpix  DW 0
+;;
+speed_test_isr_exit:
+        xor a
+        ld (ISRflagJP),a
+
+        ; correct
+        ld hl,21
+        add hl,de
+        ld (spdtiks),hl
+        ex de,hl
+
+        ;mul on 16
+        ld bc,16
+        call MATH.mul16
+
+        ; print tacts
+        ld ix,asciibuff
+        call decasc32
+        ld a,(wnd_speedtest + WINDOW.x)
+        inc a
+        ld e,a
+        ld a,(wnd_speedtest + WINDOW.y)
+        add a,2
+        ld d,a
+        call SCREEN.gotoXY
+        ld hl,wnd_txt_speedtest : call strprnz
+        ld hl,asciibuff : call strprnz
+        ld hl,emptystr : call strprnz
+
+        ld hl,(spdtiks)
+        ld de,(oldtiks)
+        or a
+        sbc hl,de
+        jr z,.skip_update
+
+        ld hl,(pgsaddr)
+        ld b,60
+.clear_bar_lp
+        ld a,#20
+        ld c,SPEEDTEST_BAR_COLOR
+        call sym_prn
+        djnz .clear_bar_lp
+
+.skip_update
+        ld hl,(spdtiks)
+        ld (oldtiks),hl
+        ld de,15974
+
+        ld a,h
+        exx
+        ld l,a
+        ld h,0
+        ld e,h
+        ld d,h
+        exx
+        ld h,l
+        ld l,0
+
+        ld c,l : ld b,l
+.spdlp  inc bc
+        or a
+        sbc hl,de
+        exx
+        sbc hl,de
+        exx
+        jp nc,.spdlp
+        dec bc
+
+        ld l,c : ld h,b
+
+        ld (spdpix),hl
+        call drawSpeedBar
+
+        ei
+
+;if ESC key pressed?
+        ld a,#FE
+        in a,(#FE)
+        rrca
+        jp c,speed_test_loop
+        ld a,#F7
+        in a,(#FE)
+        rrca
+        jp c,speed_test_loop
+
+        call turbo_save
+        jp clear_speedtest_window
+
+bar_tbl DB 0b00000000
+        DB 0b10000000
+        DB 0b11000000
+        DB 0b11100000
+        DB 0b11110000
+        DB 0b11111000
+        DB 0b11111100
+        DB 0b11111110
+
+ruler_tbl
+        DB 1,2,2,2,2,2,2,3
+        DB 2,2,2,2,2,2,4,5
+        DB 2,2,2,2,2,2,3
+        DB 2,2,2,2,2,2,4,5
+        DB 2,2,2,2,2,2,3
+        DB 2,2,2,2,2,2,4,5
+        DB 2,2,2,2,2,2,3
+        DB 2,2,2,2,2,2,6
+        DB 0
+
+x_tbl   DB 0,1,23       ;0x
+        DB 7,1,7        ;1x
+        DB 7,2,8,9      ;2x
+        DB 8,1,10       ;3x
+        DB 7,2,11,9     ;4x
+        DB 8,1,12       ;5x
+        DB 7,2,13,9     ;6x
+        DB 8,1,14       ;7x
+        DB 7,1,15       ;8x
+        DB -1
+
+printX:
+        ld a,(wnd_speedtest + WINDOW.x)
+        add a,2
+        ld e,a
+        ld a,(wnd_speedtest + WINDOW.y)
+        add a,4
+        ld d,a
+        call SCREEN.gotoXY
+
+        ld ix,x_tbl
+.lp     ld a,(ix)
+        inc ix
+        cp -1
+        ret z
+
+        add a,e
+        ld e,a
+        push de
+        call SCREEN.gotoXY
+
+        ld b,(ix) : inc ix
+.lps    push bc
+        ld a,(ix) : inc ix
+        ld c,SPEEDTEST_XX_COLOR
+        call sym_prn
+        pop bc
+        djnz .lps
+
+        pop de
+        jr .lp
+
+drawRuler:
+        ld ix,ruler_tbl
+.lp     ld a,(ix)
+        or a
+        ret z
+        inc ix
+        ld c,SPEEDTEST_RULER_COLOR
+        call sym_prn
+        jp .lp
+
+drawSpeedBar:
+        exx
+        ld hl,(pgsaddr)
+        exx
+
+.lp     ld de,8
+        or a
+        sbc hl,de
+        jr c,.exit
+        push hl
+        exx
+        ld a,#DB
+        ld c,SPEEDTEST_BAR_COLOR
+        call sym_prn
+        exx
+        pop hl
+        jr .lp
+
+.exit   add hl,de
+        ld a,l
+        or a
+        ret z
+        ld h,0
+        ld de,bar_tbl
+        add hl,de
+        ld a,(hl)
+        exx
+        ld b,8
+1       ld (hl),a
+        inc h
+        djnz 1B
+        exx
+        ret

@@ -1,0 +1,21 @@
+        DEVICE ZXSPECTRUM128
+
+        ORG #8000
+start   di
+
+        ld hl,fxbank : call AYFX.Init
+
+        ld a,2 : ld e,1: call AYFX.PlayChannel
+
+loop    ei : halt
+        call AYFX.Frame
+        jp loop
+
+        INCLUDE "ayfxplay.a80"
+
+fxbank  INCBIN "aleste.afb"
+end
+
+        SAVESNA "ayfx_test.sna", start
+
+

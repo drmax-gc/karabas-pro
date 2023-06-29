@@ -1,0 +1,361 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+WND_NOSHADOW            EQU     #80
+
+        STRUCT WINDOW
+x               BYTE
+y               BYTE
+w               BYTE
+h               BYTE
+flags           BYTE
+hdr_attr        BYTE
+wnd_attr        BYTE
+hdr_text        WORD
+wnd_text        WORD
+menu_ptr        WORD
+        ENDS
+
+;; variables
+screen_addr             WORD #A000
+window_attr             BYTE 0b10111000
+window_header_attr      BYTE #4F
+
+;; current window vars
+win_x           DB 0
+win_y           DB 0
+win_w           DB 64
+win_h           DB 30
+win_flags       DB 0
+win_attr        DB 0
+frm_attr        DB 0
+window_addr     DW #A000
+;;
+cur_x           DB 0
+cur_y           DB 0
+;;
+sym_attr        DB #47
+bg_attr         DB 7
+inv_attr        DB 0
+linked_ptr      DW link_msg
+
+        MODULE WINDOW
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; IX - window descriptor
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+drawWindow:
+        ld a,(ix + WINDOW.x)
+        ld e,a
+        ld (win_x),a
+        ld a,(ix + WINDOW.y)
+        ld d,a
+        ld (win_y),a
+        call SCREEN.getaddr_sym
+        ld (screen_addr),hl
+        ld (window_addr),hl
+
+        ld a,(ix + WINDOW.w)
+        ld c,a
+        ld (win_w),a
+        ld a,(ix + WINDOW.h)
+        dec a
+        ld b,a
+        ld (win_h),a
+
+        ld a,(ix + WINDOW.flags)
+        ld (win_flags),a
+
+        ld a,(ix + WINDOW.hdr_attr)
+        ld (window_header_attr),a
+        ld (win_attr),a
+        ld (sym_attr),a
+
+        ld a,(ix + WINDOW.wnd_attr)
+        ld (window_attr),a
+
+        call drawFrame
+
+        ld hl,(ix + WINDOW.hdr_text)
+        ld a,l : or h
+        call nz,printHeader
+
+        call setWindowVariables
+
+        ld hl,(ix + WINDOW.wnd_text)
+        ld a,l : or h
+        call nz,printWindowText
+        ret
+
+setWindowVariables:
+        ld a,(ix + WINDOW.x)
+        inc a
+        ld e,a
+        ld (win_x),a
+        ld (cur_x),a
+        ld a,(ix + WINDOW.y)
+        inc a
+        ld d,a
+        ld (win_y),a
+        ld (cur_y),a
+
+        ld a,(ix + WINDOW.w)
+        ld (win_w),a
+        ld a,(ix + WINDOW.h)
+        dec a
+        ld (win_h),a
+
+        call SCREEN.getaddr_sym
+        ld (screen_addr),hl
+        ld (window_addr),hl
+
+        ld a,(ix + WINDOW.wnd_attr)
+        ld (win_attr),a
+        ld (sym_attr),a
+        ld (window_attr),a
+        ret
+
+printHeader:
+printWindowText:
+        ld a,(win_x)
+        ld e,a
+        ld a,(win_y)
+        ld d,a
+        push hl
+        call SCREEN.getaddr_sym
+        ld (window_addr),hl
+        pop hl
+        jp strprnz
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; HL - screen address
+;;  B - hight
+;;  C - width
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+drawFrame:
+        push bc
+
+        push hl
+
+;draw header
+        ld b,8
+.hdr_lp
+        ;draw pixel line
+        xor a : ld e,a : ld d,a
+        res 6,h : call drawLine
+        ;draw attribute line
+        ld a,(window_header_attr)
+        ld e,a : ld d,a
+        set 6,h : call drawLine
+        inc h
+        djnz .hdr_lp
+
+;draw logo
+        ;xchg hl
+        ex (sp),hl
+        set 6,h
+        res 5,h
+        inc h
+        inc h
+        ld a,PAPER_BRIGHT_RED | INK_BRIGHT_YELLOW
+        ld (hl),a
+        inc h
+        ld (hl),a
+        inc h
+        ld a,PAPER_BRIGHT_GREEN | INK_BRIGHT_CYAN
+        ld (hl),a
+        inc h
+        ld (hl),a
+
+        res 6,h
+        ld a,#0F
+        ld (hl),a
+        dec h
+        ld (hl),a
+        dec h
+        ld (hl),a
+        dec h
+        ld (hl),a
+
+        ;xchg hl
+        ex (sp),hl
+        ;restore stack
+        pop af
+
+        pop bc
+.yslp
+        DOWN_HL_SYM
+
+        push bc
+        ld b,8
+.ylp
+        ;draw pixel line
+        xor a
+        ld de,#C003
+        res 6,h : call drawLine
+
+        ;draw attributes line
+        ld a,(window_attr)
+        ld e,a
+        ld d,a
+        set 6,h : call drawLine
+
+        ld a,(win_flags)
+        and WND_NOSHADOW
+        jr nz,.noshadow
+
+        ;draw shadow
+        ld e,l : ld d,h
+        ld a,l : add a,c : ld l,a
+        ld a,PAPER_BRIGHT_BLACK
+        ld (hl),a
+        res 5,h
+        ld (hl),a
+        ld l,e : ld h,d
+
+.noshadow
+        inc h
+        djnz .ylp
+
+        pop bc
+        djnz .yslp
+
+        ;draw bottom line
+        dec h
+
+        ;draw pixel line
+        ld a,#FF
+        ld e,a
+        ld d,a
+        res 6,h : call drawLine
+
+        ;draw attributes line
+        ld a,(window_attr)
+        ld e,a
+        ld d,a
+        set 6,h : call drawLine
+
+        ld a,(win_flags)
+        and WND_NOSHADOW
+        ret nz
+
+        ;draw bottom shadow
+        call SCREEN.downHL
+
+        inc l
+
+        ld b,8
+.shdlp  ld a,PAPER_BRIGHT_BLACK
+        ld e,a
+        ld d,a
+        set 6,h : call drawLine
+        inc h
+        djnz .shdlp
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; HL - screen address
+;;  A - fill byte
+;;  C - lenght
+drawBar:
+        ld b,8
+.lp     push bc
+        ;res 5,h
+        push hl
+        set 6,h : call fillLine
+        ;res 5,h
+        pop hl
+        pop bc
+        inc h
+        djnz .lp
+        ret
+
+drawAttrBar:
+        ld b,8
+.lp     push bc
+        push hl
+        set 7,h
+        set 6,h : call fillLine
+        pop hl
+        pop bc
+        inc h
+        djnz .lp
+        ret
+
+drawAttrBarHalf:
+        push bc
+        ld b,4
+        call drawAttrBar.lp
+        pop bc
+        ld a,b
+        ld b,4
+        jr drawAttrBar.lp
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; HL - screen address
+;;  D - left side
+;;  E - right side
+;;  A - center side
+;;  C - lenght
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+drawLine:
+        push bc
+        dec c
+        ld b,l
+        ld (hl),d
+;        res 5,h
+        call fillLine
+        res 5,h
+        ld (hl),e
+        set 5,h
+        ld l,b
+        pop bc
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;  A - fill byte
+;;  C - lenght
+;; HL - screen address
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+fillLine:
+        exa
+        ld a,16
+        sub c
+        jr c,.over16
+
+.below16
+        ;mul on 7
+        ld c,a
+        add a,a
+        add a,c
+        add a,a
+        add a,c
+        ld (.offset),a
+        exa
+.offset EQU $+1
+.jr     jr $
+.draw16
+        ;7*16 bytes
+        DUP 16
+        res 5,h
+        ld (hl),a
+        inc l
+        set 5,h
+        ld (hl),a
+        EDUP
+        ret
+
+.over16
+        exa
+        call .draw16
+        exa
+        neg
+        ld c,a
+        ld a,16
+        sub c
+        jp .below16
+
+        ENDMODULE

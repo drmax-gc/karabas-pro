@@ -1,0 +1,293 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2022                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+STA_INIT		EQU		#00		/* Drive initialized */
+STA_NOINIT		EQU		#01		/* Drive not initialized */
+STA_NODISK		EQU		#02		/* No medium in the drive */
+STA_PROTECT		EQU		#04		/* Write protected */
+
+cf_buff EQU BUFF
+
+		MODULE CF
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+PROFI_IDE_Features_WR           EQU #01EB
+PROFI_IDE_SectorCount_WR        EQU #02EB
+PROFI_IDE_LBA_Low_WR            EQU #03EB
+PROFI_IDE_LBA_Middle_WR         EQU #04EB
+PROFI_IDE_LBA_High_WR           EQU #05EB
+PROFI_IDE_Device_WR             EQU #06EB
+PROFI_IDE_Command_WR            EQU #07EB
+PROFI_IDE_Data_Low              EQU #00CB
+PROFI_IDE_Data_High             EQU #FFEB
+
+PROFI_IDE_DControl              EQU #06AB
+
+PROFI_IDE_Error_RD              EQU #01CB
+PROFI_IDE_SectorCount_RD        EQU #02CB
+PROFI_IDE_LBA_Low_RD            EQU #03CB
+PROFI_IDE_LBA_Middle_RD         EQU #04CB
+PROFI_IDE_LBA_High_RD           EQU #05CB
+PROFI_IDE_Device_RD             EQU #06CB
+PROFI_IDE_Status_RD             EQU #07CB
+
+ATA_CMD_NOP                     EQU #00
+ATA_CMD_RECALIBRATE             EQU #10
+ATA_CMD_READ_SECTORS            EQU #20
+ATA_CMD_READ_LONG               EQU #22
+ATA_CMD_WRITE_SECTORS           EQU #30
+ATA_CMD_WRITE_LONG              EQU #32
+ATA_CMD_READ_VERIFY_SECTORS     EQU #40
+ATA_CMD_INITIALIZE              EQU #91
+ATA_CMD_IDENTIFY                EQU #EC
+
+IDE_STATUS_BUSY                 EQU #80
+IDE_STATUS_DRIVE_READY          EQU #40
+IDE_STATUS_DRIVE_SEEK_COMPLETE  EQU #10
+IDE_STATUS_DRQ                  EQU #08
+IDE_STATUS_ERROR                EQU #01
+
+IDENTIFY_DEVICE_DATA_SIZE       EQU #5E
+MODEL_NUMBER_OFFSET             EQU #36
+NUM_CYLINDERS_OFFSET            EQU #02
+
+		STRUCT IDENTIFY_DEVICE_DATA
+GeneralConfiguration            WORD
+NumCylinders                    WORD
+SpecificConfiguration           WORD
+NumHeads                        WORD
+Retired1                        DWORD
+NumSectorsPerTrack              WORD
+VendorUnique1                   WORD
+VendorUnique2                   WORD
+VendorUnique3                   WORD
+SerialNumber                    DS 20
+Retired2                        DWORD
+Obsolete1                       DWORD
+FirmwareRevision                DS 8
+ModelNumber                     DS 40
+		ENDS
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+cylinders                       DW 0
+sector_per_track                DB 0
+number_of_heads                 DB 0
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wait_ready:
+        push af, bc
+        ld bc,PROFI_IDE_Status_RD
+.wait   in a,(c)
+        and IDE_STATUS_BUSY | IDE_STATUS_DRIVE_READY
+        cp IDE_STATUS_DRIVE_READY
+        jr nz,.wait
+        pop bc, af
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wait_drq:
+        push af, bc
+        ld bc,PROFI_IDE_Status_RD
+.wait   in a,(c)
+        and IDE_STATUS_DRQ
+        jr z,.wait
+        pop bc, af
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wait_bsy:
+        push af, bc
+        ld bc,PROFI_IDE_Status_RD
+.wait   in a,(c)
+        and IDE_STATUS_BUSY
+        jr nz,.wait
+        pop bc, af
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;HL - data 
+;BC:DE - sector number (LBA)
+read_data:
+        di
+        push bc, de
+
+        call wait_bsy
+        push de
+
+        ld a,b
+        and #0F
+        ld d,a
+        ld e,c
+
+;set LBA
+        ld bc,PROFI_IDE_Device_WR
+        ld a,#E0
+        or d
+        out (c),a
+
+        call wait_ready
+
+        ld bc,PROFI_IDE_LBA_High_WR
+        out (c),e
+
+        pop de
+        ld bc,PROFI_IDE_LBA_Middle_WR
+        out (c),d
+        ld bc,PROFI_IDE_LBA_Low_WR
+        out (c),e
+
+        ld bc,PROFI_IDE_SectorCount_WR
+        ld a,1
+        out (c),a
+
+        ld bc,PROFI_IDE_Command_WR
+        ld a,ATA_CMD_READ_SECTORS
+        out (c),a
+
+        call wait_bsy
+        call wait_drq
+
+        call read_sector
+
+        ld bc,PROFI_IDE_Status_RD
+        in a,(c)
+
+        pop de
+
+        bit 0,a
+        jr nz,.error
+        bit 5,a
+        jr nz,.error
+        pop bc
+        ret
+
+.error  ld bc,PROFI_IDE_Error_RD
+        in a,(c)
+        scf
+        pop bc
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;HL - data 
+read_sector:
+        push de
+        xor a
+        ld b,a
+.read_sector_loop
+        ld c,low PROFI_IDE_Data_Low
+        in d,(c)
+        ld c,low PROFI_IDE_Data_High
+        in e,(c)
+        ld (hl),e : inc hl
+        ld (hl),d : inc hl
+        dec a
+        jp nz,.read_sector_loop
+        pop de
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+initialize:
+
+        ld a,#04
+        ld bc,PROFI_IDE_DControl
+        out (c),a
+        ei
+        halt
+        xor a
+        out (c),a
+        halt
+
+        ld a,#E0
+        ld bc,PROFI_IDE_Device_WR
+        out (c),a
+
+        ld d,#20
+        ld bc,PROFI_IDE_Status_RD
+.lp1    ei : halt : di
+        dec d
+        jr z,.nodev
+        in a,(c)
+        bit 7,a
+        jr nz,.lp1
+        and a
+        jr z,.nodev
+        inc a
+        jr z,.nodev
+
+        xor a
+        ld bc,PROFI_IDE_LBA_High_WR
+        out (c),a
+        ld bc,PROFI_IDE_LBA_Middle_WR
+        out (c),a
+
+        ld a,ATA_CMD_IDENTIFY
+        ld bc,PROFI_IDE_Command_WR
+        out (c),a
+
+        ld bc,PROFI_IDE_Status_RD
+.lp2    in a,(c)
+        and a
+        jr z,.nodev
+        inc a
+        jr z,.nodev
+        dec a
+        rrca
+        jr c,.ok
+        rlca
+        and #88
+        cp #8
+        jr nz,.lp2
+
+.ok     ld bc,PROFI_IDE_LBA_Middle_RD
+        in e,(c)
+        ld bc,PROFI_IDE_LBA_High_RD
+        in d,(c)
+        ld a,d
+        or e
+        jr z,.readsec
+
+.nodev	ld a,STA_NOINIT
+        ret
+
+.readsec
+        call wait_drq
+        ld hl,cf_buff
+        push hl
+        call read_sector
+        pop ix
+
+        ld hl,cf_buff + CF.NUM_CYLINDERS_OFFSET
+        ld d,(hl) : inc hl : ld e,(hl)
+        ld (cylinders),de
+
+        ld a,(ix + IDENTIFY_DEVICE_DATA.NumSectorsPerTrack+1)
+        ld (sector_per_track),a
+        exa
+        ld a,(ix + IDENTIFY_DEVICE_DATA.NumHeads+1)
+        ld (number_of_heads),a
+        dec a
+        or #E0
+        ld bc,PROFI_IDE_Device_WR
+        out (c),a
+        exa
+        ld bc,PROFI_IDE_SectorCount_WR
+        out (c),a
+
+        ld a,ATA_CMD_INITIALIZE
+        ld bc,PROFI_IDE_Command_WR
+        out (c),a
+
+        ld bc,PROFI_IDE_Status_RD
+        ld de,#4000
+.lp3    dec de
+        ld a,e
+        or d
+        jr z,.error
+        in a,(c)
+        rlca
+        jr c,.lp3
+        xor a
+        ret
+
+.error	ld a,STA_NOINIT
+	ret
+        ENDMODULE
+

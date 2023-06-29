@@ -1,0 +1,425 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        MODULE simplorer
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ATTR_DIR        EQU INK_YELLOW | PAPER_BRIGHT_WHITE
+ATTR_FILE       EQU INK_GREEN | PAPER_BRIGHT_WHITE
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        STRUCT CURSOR
+cur_attr        BYTE
+rest_attr       BYTE
+cur_item        BYTE
+files
+items           BYTE
+offset          BYTE
+deep            BYTE
+        ENDS
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+start:
+        DRAW_Window wnd_simplorer
+
+        di
+        ;initialize z-controller
+        call sdcard_zc.init : jp nz,.error
+
+        ;initialize fs
+        call fat32.mount : jp nz,.error
+
+        ;chroot
+        ld hl,file : call fat32.chroot
+
+        ld ix,cursor_descriptor
+        xor a
+        ld (ix + CURSOR.cur_item),a
+        ld (ix + CURSOR.offset),a
+        ld (ix + CURSOR.deep),a
+
+.main_loop
+        di
+        call RAM.setFATPage
+        call strlist.init
+
+        ld b,0
+.read_dir_loop
+        call RAM.setFATPage
+        push bc : ld hl,file : call fat32.getent : pop bc
+        jr c,.read_dir_exit
+
+        ;detect filetype
+        ;#11 - file
+        ;#01 - directory
+        ld hl,fat32.FAT32_DIRENT.DIR_Attr
+        add hl,de
+        ld a,(hl)
+        and fat32.FA_DIRECTORY
+        xor fat32.FA_DIRECTORY
+        inc a
+        ld hl,__entry_type
+        ld (hl),a
+
+        ;skip "." folder
+        dec a
+        jr nz,.add_entry        ;if Z then file entry
+        push hl : pop ix
+        ;add ".." folder
+        ld a,(ix + 1)
+        cp '.'
+        jr nz,.add_entry
+        ld a,(ix + 2)
+        or a
+        jr z,.read_dir_loop
+
+.add_entry
+        push bc : call strlist.add : pop bc
+        inc b
+        jr .read_dir_loop
+
+.read_dir_exit
+        ld ix,cursor_descriptor
+        ld (ix + CURSOR.items),b
+        ;xor a
+        ;ld (ix + CURSOR.offset),a
+
+        call print_dir
+
+.menu_redraw
+        ld ix,cursor_descriptor
+        call print_cursor
+
+.menu   ei : halt : call KEYBOARD.getKey
+        cp KEY_EDIT : call z,MENU.fx_esc
+        jr z,.exit
+        cp KEY_UP : call z,MENU.fx
+        jr z,.up
+        cp KEY_DOWN : call z,MENU.fx
+        jr z,.down
+        cp KEY_ENTER : call z,MENU.fx_ent
+        jp z,.enter
+        jr .menu
+
+.menu_unkey_wait
+        halt : call KEYBOARD.getKey
+        or a
+        jr nz,.menu_unkey_wait
+        jr .menu
+
+.exit   jp clear_simplorer_window
+
+.up     ld a,(ix + CURSOR.cur_item)
+        or a
+        jr z,.up0
+        dec a
+        call restore_cursor
+        ld (ix + CURSOR.cur_item),a
+        jr .menu_redraw
+
+.up0    ld a,(ix + CURSOR.offset)
+        or a
+        jr z,.menu_unkey_wait
+        dec a
+        ld (ix + CURSOR.offset),a
+        push af
+        call restore_cursor
+        call window_scroll_down
+        ld de,#0B03
+        call SCREEN.getaddr_sym : ld (screen_addr),hl
+        pop af
+        add a,(ix + CURSOR.cur_item)
+        call print_entry
+        jp .menu_redraw
+
+.down   ld a,(ix + CURSOR.items)
+        cp 16
+        jr c,.less16
+        ld a,(ix + CURSOR.cur_item)
+        inc a
+        cp 16
+        jr z,.scrdn
+        call restore_cursor
+        ld (ix + CURSOR.cur_item),a
+        jp .menu_redraw
+
+.scrdn  ld a,(ix + CURSOR.items)
+        sub 16
+        ld c,a
+        ld a,(ix + CURSOR.offset)
+        cp c
+        jr nc,.menu_unkey_wait
+        call restore_cursor
+        inc a
+        ld (ix + CURSOR.offset),a
+        push af
+        call window_scroll_up
+        ld de,#1A03
+        call SCREEN.getaddr_sym : ld (screen_addr),hl
+        pop af
+        add a,(ix + CURSOR.cur_item)
+        call print_entry
+        jp .menu_redraw
+
+.less16 ld a,(ix + CURSOR.cur_item)
+        inc a
+        cp (ix + CURSOR.items)
+        jp z,.menu_unkey_wait
+        call restore_cursor
+        ld (ix + CURSOR.cur_item),a
+        jp .menu_redraw
+
+.enter  ld a, (ix + CURSOR.cur_item)
+        add (ix + CURSOR.offset)
+        call RAM.setFATPage : call strlist.get
+        ld a,(hl) : inc hl
+        ex de,hl
+        dec a
+        jr z,.chdir
+
+;;::::::::::::::::::::::::::::::
+        ex de,hl
+        ; hl - filename
+        ld de,filename_buffer + 2
+        push de
+        call strcpy
+        pop hl
+
+        call strtolower
+        dec hl
+        ld c,'.'
+        call strchrd
+        inc hl
+        ld de,txt_c
+        call strcmp
+        jr nz,.nohobeta
+
+        call RAM.setAttrPage
+        call clear_simplorer_window
+        DRAW_Window wnd_boot
+        PRINT_String txt_simplorer_open
+        di : ld de,filename_buffer + 2 : jp load_boot.open
+
+.nohobeta
+        call RAM.setAttrPage
+        call restore_cursor
+        jp .menu_redraw
+
+.chdir  ld a,(ix + CURSOR.cur_item)
+        or a
+        jr z,.chdir_up
+        ld c,a
+
+        ld a,(ix + CURSOR.deep)
+.chdir2 ld l,a : ld h,high DIR_DEEP
+        ld (hl),c
+        inc a
+        ld (ix + CURSOR.deep),a
+        inc h
+        ld a,(ix + CURSOR.offset)
+        ld (hl),a
+
+        xor a
+        ld (ix + CURSOR.offset),a
+.chdir0 ld (ix + CURSOR.cur_item),a
+        ld hl,file : call fat32.chdir
+.chdir1 call RAM.setAttrPage
+        DRAW_Window wnd_simplorer
+        jp .main_loop
+
+.chdir3 ld l,a : ld h,high DIR_DEEP
+        ld (ix + CURSOR.deep),a
+        ld c,(hl)
+        inc h
+        ld a,(hl)
+        ld (ix + CURSOR.offset),a
+        ld a,c
+        jr .chdir0
+
+.chdir_up
+        ld c,a
+        ld a,(ix + CURSOR.deep)
+        or a
+        jr z,.chdir2
+        dec a
+        jr nz,.chdir3
+        ld l,a : ld h,high DIR_DEEP
+        ld (ix + CURSOR.deep),a
+        ld a,(hl)
+        ld (ix + CURSOR.cur_item),a
+        inc h
+        ld a,(hl)
+        ld (ix + CURSOR.offset),a
+        ld hl,file : call fat32.chroot
+        jr .chdir1
+
+.error  PRINT_String txt_failed
+        ;delay
+        ld b,#40 : ei : halt : djnz $-1
+        call clear_simplorer_window
+        jp main_loop
+
+print_dir:
+        ;XY coords
+        ld de,(win_x)
+        ld a,(ix + CURSOR.offset)
+        ld c,a
+        add a,16
+        ld l,a
+.prnlp  push hl,de,bc
+        call SCREEN.getaddr_sym : ld (screen_addr),hl
+
+        ld a,c : call print_entry
+
+        pop bc,de,hl
+        inc d : inc c
+        ld a,c
+        cp l
+        ret z
+        djnz .prnlp
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+print_entry:
+        push hl
+        call get_entry
+        call RAM.setAttrPage
+        dec a
+        ld de,#FBFC
+        ld c,ATTR_DIR
+        jr z,.dir
+        ld de,#F4F5
+        ld c,ATTR_FILE
+.dir    pop hl
+        ld a,d : call sym_prn
+        ld a,e : call sym_prn
+        ld (screen_addr),hl
+        ld hl,__entry_type + 1
+        jp strprnz
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+get_entry:
+        call RAM.setFATPage
+        call strlist.get
+        push hl
+        ld de,__entry_type
+        call strcpy
+        ld hl,__entry_type + 56
+        ld (hl),'~' : inc hl : ld (hl),0
+        pop hl
+        ld a,(hl)
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+get_cursor_addr:
+        ld a,(win_y)
+        ld e,a
+        ld a,(ix + CURSOR.cur_item)
+        and #0F
+        add a,e
+        ld d,a
+        ld a,(win_x)
+        dec a
+        ld e,a
+        jp SCREEN.getaddr_sym
+;;::::::::::::::::::::::::::::::
+print_cursor:
+        call get_cursor_addr
+        ;set attribute addr
+        set 6,h
+        inc l : ld a,(hl) : dec l
+        ld (ix + CURSOR.rest_attr),a
+        ld a,(win_w)
+        sub 2
+        ld c,a
+        ld a,(ix + CURSOR.rest_attr)
+        and %11000111
+        or %01000000
+        or PAPER_BRIGHT_CYAN
+        push bc, hl
+        ld c,1
+        call WINDOW.drawAttrBar
+        pop hl, bc
+        inc l
+        ld a,(ix + CURSOR.cur_attr)
+        jp WINDOW.drawAttrBar
+;;::::::
+restore_cursor:
+        push af
+        call get_cursor_addr
+        ld a,(win_w)
+        sub 2
+        ld c,a
+        ld a,(ix + CURSOR.rest_attr)
+        push bc, hl
+        ld c,1
+        call WINDOW.drawAttrBar
+        pop hl, bc
+        inc l
+        ld a,(window_attr)
+        call WINDOW.drawAttrBar
+        pop af
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+window_scroll_up:
+        ld hl,#8881
+        ld de,#8861
+        ld bc,#0F3A
+.lp     push bc,de,hl
+        call SCREEN.line_copy_uneven
+        pop hl,de,bc
+        call SCREEN.downHLS
+        call SCREEN.downDES
+        djnz .lp
+        ex de,hl
+        jp SCREEN.line_fill_uneven
+;;::::::
+window_scroll_down:
+        ld hl,#9821
+        ld de,#9841
+        ld bc,#0F3A
+.lp     push bc,de,hl
+        call SCREEN.line_copy_uneven
+        pop hl,de,bc
+        call SCREEN.upHLS
+        call SCREEN.upDES
+        djnz .lp
+        ex de,hl
+        jp SCREEN.line_fill_uneven
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+strchrd         IFUSED
+.loop   ld a, (hl): cp c: ret z
+        dec hl: or a: jp nz, .loop
+        inc hl: dec a: ret
+                ENDIF
+
+strtolower      IFUSED
+.loop   ld a,(hl)
+        or a
+        ret z
+        cp #41
+        jr c,.exit
+        cp #A0
+        jr nc,.exit
+        cp #5B
+        jr c,.add32
+        cp #80
+        jr c,.exit
+        cp #90
+        jr c,.exit
+        add a,#30
+.add32  add a,#20
+.exit   ld (hl),a
+        inc hl
+        jp .loop
+        ret
+                ENDIF
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+txt_c   DB "$c", 0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+cursor_descriptor CURSOR PAPER_BRIGHT_CYAN | INK_BRIGHT_WHITE, 0, 0, 0, 0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wnd_simplorer   WINDOW 2,10, 30, 18, 0, PAPER_BLACK | INK_BRIGHT_WHITE, PAPER_BRIGHT_WHITE | INK_BLACK, hdr_simplorer, 0
+hdr_simplorer   DB MARK_CENTER, "File Simplorer", 0
+txt_simplorer_open
+                DB MARK_INK, INK_BLUE, "Opening...", 0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        ENDMODULE

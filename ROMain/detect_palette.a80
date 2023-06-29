@@ -1,0 +1,32 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+detect_palette:
+        call clear_main_window
+        call clear_test_window
+
+        DRAW_Window wnd_detect_pal
+
+        ld hl,txt_detect_pal : call strprnz
+
+        call PALETTE.check
+        ld hl,txt_detect_ok
+        or a
+        jr nz,.ok
+        ld hl,txt_detect_failed
+.ok     call strprnz
+
+.lp     halt
+        call KEYBOARD.keyin
+        cp KEY_EDIT
+        jr nz,.lp
+        jp clear_window
+
+wnd_detect_pal          WINDOW 6,14, 26, 10, 0, PAPER_BLACK | INK_BRIGHT_WHITE, PAPER_BRIGHT_WHITE | INK_BLACK, hdr_detect_pal, 0
+hdr_detect_pal          DB MARK_CENTER, "Detect palette", 0
+txt_detect_pal          DB MARK_CENTER, "\nCheking for palette compatible... ",0
+txt_detect_ok           DB MARK_INK, INK_GREEN, "Ok", 0
+txt_detect_failed       DB MARK_INK, INK_RED, "Failed", 0

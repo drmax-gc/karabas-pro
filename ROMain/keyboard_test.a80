@@ -1,0 +1,471 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+KEY_ATTR                EQU 0b01111111
+KEY_ATTR_CHECKED        EQU 0b11001111
+KEY_ATTR_PRESSED        EQU 0b10111111
+KEY_STATUS_PRESSED      EQU #FF
+KEY_STATUS_UNPRESSED    EQU #00
+
+        STRUCT KEYPTN
+code    BYTE
+status  BYTE
+x       BYTE
+y       BYTE
+size    BYTE
+text    WORD
+        ENDS
+
+KEYBOARD_TEST_START EQU $
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+txtAp   DB "`"
+txt1    DB "1"
+txt2    DB "2"
+txt3    DB "3"
+txt4    DB "4"
+txt5    DB "5"
+txt6    DB "6"
+txt7    DB "7"
+txt8    DB "8"
+txt9    DB "9"
+txt0    DB "0"
+txtMin  DB "-"
+txtPlus DB "+"
+txtBack DB "Backspace"
+
+txtTAB  DB "Tab"
+txtQ    DB "Q"
+txtW    DB "W"
+txtE    DB "E"
+txtR    DB "R"
+txtT    DB "T"
+txtY    DB "Y"
+txtU    DB "U"
+txtI    DB "I"
+txtO    DB "O"
+txtP    DB "P"
+txtLbr  DB "["
+txtRbr  DB "]"
+txtBSl  DB "\\|/"
+
+txtCaps DB "CAPS"
+txtA    DB "A"
+txtS    DB "S"
+txtD    DB "D"
+txtF    DB "F"
+txtG    DB "G"
+txtH    DB "H"
+txtJ    DB "J"
+txtK    DB "K"
+txtL    DB "L"
+txtSmcl DB ";"
+txtQmrk DB "'"
+txtEnt  DB "Enter"
+
+txtLSh  DB "Shift"
+txtZ    DB "Z"
+txtX    DB "X"
+txtC    DB "C"
+txtV    DB "V"
+txtB    DB "B"
+txtN    DB "N"
+txtM    DB "M"
+txtComm DB ","
+txtDot  DB "."
+txtSl   DB "/"
+txtRSh  DB " Shift "
+
+txtCtrl DB "Ctr"
+txtLAlt DB "Alt"
+txtSpace DB "       SPACE      "
+
+txtCUp  DB #1E
+txtCLft DB #11
+txtCDn  DB #1F
+txtCRt  DB #10
+
+txtEsc  DB #C6
+txtF1   DB #C7
+txtF2   DB #C8
+txtF3   DB #C9
+txtF4   DB #CA
+txtF5   DB #CB
+txtF6   DB #CC
+txtF7   DB #CD
+txtF8   DB #CE
+
+txtF9   DB #CF
+txtF10  DB #D0
+txtF11  DB #D1
+txtF12  DB #D2
+
+txtIns  DB #D3
+txtHm   DB #D5
+txtPUp  DB #D6
+
+txtDel  DB #D4
+txtEnd  DB #D8
+txtPDn  DB #D7
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+keyboard_table  KEYPTN KEY_EDIT,        0,       0, -3, 1, txtEsc
+                KEYPTN KEY_F1,          0,       6, -3, 1, txtF1
+                KEYPTN KEY_F2,          0,       9, -3, 1, txtF2
+                KEYPTN KEY_F3,          0,      12, -3, 1, txtF3
+                KEYPTN KEY_F4,          0,      15, -3, 1, txtF4
+                KEYPTN KEY_F5,          0,      20, -3, 1, txtF5
+                KEYPTN KEY_F6,          0,      23, -3, 1, txtF6
+                KEYPTN KEY_F7,          0,      26, -3, 1, txtF7
+                KEYPTN KEY_F8,          0,      29, -3, 1, txtF8
+                KEYPTN KEY_F9,          0,      34, -3, 1, txtF9
+                KEYPTN KEY_F10,         0,      37, -3, 1, txtF10
+                KEYPTN KEY_F11,         0,      40, -3, 1, txtF11
+                KEYPTN KEY_F12,         0,      43, -3, 1, txtF12
+
+                KEYPTN '`',             0,       0, 0, 1, txtAp
+                KEYPTN '1',             0,       3, 0, 1, txt1
+                KEYPTN '2',             0,       6, 0, 1, txt2
+                KEYPTN '3',             0,       9, 0, 1, txt3
+                KEYPTN '4',             0,      12, 0, 1, txt4
+                KEYPTN '5',             0,      15, 0, 1, txt5
+                KEYPTN '6',             0,      18, 0, 1, txt6
+                KEYPTN '7',             0,      21, 0, 1, txt7
+                KEYPTN '8',             0,      24, 0, 1, txt8
+                KEYPTN '9',             0,      27, 0, 1, txt9
+                KEYPTN '0',             0,      30, 0, 1, txt0
+                KEYPTN '-',             0,      33, 0, 1, txtMin
+                KEYPTN '=',             0,      36, 0, 1, txtPlus
+                KEYPTN KEY_BACK,        0,      39, 0, 5, txtBack
+
+                KEYPTN KEY_INS,         0,      49, 0, 1, txtIns
+                KEYPTN KEY_HOME,        0,      52, 0, 1, txtHm
+                KEYPTN KEY_PGUP,        0,      55, 0, 1, txtPUp
+
+                KEYPTN KEY_TAB,         0,       0, 2, 3, txtTAB
+                KEYPTN 'q',             0,       5, 2, 1, txtQ
+                KEYPTN 'w',             0,       8, 2, 1, txtW
+                KEYPTN 'e',             0,      11, 2, 1, txtE
+                KEYPTN 'r',             0,      14, 2, 1, txtR
+                KEYPTN 't',             0,      17, 2, 1, txtT
+                KEYPTN 'y',             0,      20, 2, 1, txtY
+                KEYPTN 'u',             0,      23, 2, 1, txtU
+                KEYPTN 'i',             0,      26, 2, 1, txtI
+                KEYPTN 'o',             0,      29, 2, 1, txtO
+                KEYPTN 'p',             0,      32, 2, 1, txtP
+                KEYPTN '[',             0,      35, 2, 1, txtLbr
+                KEYPTN ']',             0,      38, 2, 1, txtRbr
+                KEYPTN '\',             0,      41, 2, 3, txtBSl
+
+                KEYPTN KEY_DEL,         0,      49, 2, 1, txtDel
+                KEYPTN KEY_END,         0,      52, 2, 1, txtEnd
+                KEYPTN KEY_PGDN,        0,      55, 2, 1, txtPDn
+
+                KEYPTN KEY_CAPS,        0,       0, 4, 4, txtCaps
+                KEYPTN 'a',             0,       6, 4, 1, txtA
+                KEYPTN 's',             0,       9, 4, 1, txtS
+                KEYPTN 'd',             0,      12, 4, 1, txtD
+                KEYPTN 'f',             0,      15, 4, 1, txtF
+                KEYPTN 'g',             0,      18, 4, 1, txtG
+                KEYPTN 'h',             0,      21, 4, 1, txtH
+                KEYPTN 'j',             0,      24, 4, 1, txtJ
+                KEYPTN 'k',             0,      27, 4, 1, txtK
+                KEYPTN 'l',             0,      30, 4, 1, txtL
+                KEYPTN ';',             0,      33, 4, 1, txtSmcl
+                KEYPTN "'",             0,      36, 4, 1, txtQmrk
+                KEYPTN KEY_ENTER,       0,      39, 4, 5, txtEnt
+
+                KEYPTN KEY_SS,          0,       0, 6, 5, txtLSh
+                KEYPTN 'z',             0,       7, 6, 1, txtZ
+                KEYPTN 'x',             0,      10, 6, 1, txtX
+                KEYPTN 'c',             0,      13, 6, 1, txtC
+                KEYPTN 'v',             0,      16, 6, 1, txtV
+                KEYPTN 'b',             0,      19, 6, 1, txtB
+                KEYPTN 'n',             0,      22, 6, 1, txtN
+                KEYPTN 'm',             0,      25, 6, 1, txtM
+                KEYPTN ',',             0,      28, 6, 1, txtComm
+                KEYPTN '.',             0,      31, 6, 1, txtDot
+                KEYPTN '/',             0,      34, 6, 1, txtSl
+                KEYPTN KEY_SS,          0,      37, 6, 7, txtRSh
+
+                KEYPTN KEY_CS,          0,       0, 8, 3, txtCtrl
+                KEYPTN KEY_SSENT,       0,       8, 8, 3, txtLAlt
+                KEYPTN KEY_SPACE,       0,      13, 8, 18, txtSpace
+                KEYPTN KEY_SSSP,        0,      33, 8, 3, txtLAlt
+                KEYPTN KEY_CS,          0,      41, 8, 3, txtCtrl
+
+                KEYPTN KEY_UP,          0,      52, 6, 1, txtCUp
+                KEYPTN KEY_LEFT,        0,      49, 8, 1, txtCLft
+                KEYPTN KEY_DOWN,        0,      52, 8, 1, txtCDn
+                KEYPTN KEY_RIGHT,       0,      55, 8, 1, txtCRt
+                DB #FF, #FF
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; in:
+;;  C - key status (#00 unpressed; #FF pressed)
+;; IX - struct ptr
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+print_key:
+        push af
+        push bc
+
+        inc c
+        ld c,KEY_ATTR
+        jr nz,$ + 2 + 2
+        ld c,KEY_ATTR_PRESSED
+
+        ld a,(ix + KEYPTN.x)
+        add a,3
+        ld e,a
+        ld a,(ix + KEYPTN.y)
+        add a,17
+        ld d,a
+
+        push de
+        push de
+
+        call SCREEN.gotoXY
+
+        PRINT_Symbol #12
+        ld b,(ix + KEYPTN.size)
+.xlp0   push bc
+        PRINT_Symbol #13
+        pop bc
+        djnz .xlp0
+        PRINT_Symbol #14
+
+        pop de
+        inc d
+        call SCREEN.gotoXY
+
+        PRINT_Symbol #18
+        ld b,(ix + KEYPTN.size)
+.xlp1   push bc
+        PRINT_Symbol #19
+        pop bc
+        djnz .xlp1
+        PRINT_Symbol #1A
+
+        pop de
+        inc e
+
+        ld hl,(ix + KEYPTN.text)
+        push hl : pop iy
+
+        call SCREEN.gotoXY
+
+        ld a,(ix + KEYPTN.status)
+        inc a
+        jr nz,.unchecked
+        ld a,c
+        cp KEY_ATTR
+        jr nz,.unchecked
+        ld c,KEY_ATTR_CHECKED
+        jr .unpressed
+
+.unchecked
+        cp KEY_ATTR_PRESSED
+        jr nz,.unpressed
+        ld a,(ix + KEYPTN.status)
+        inc a
+        jr nz,.unpressed
+        ld a,KEY_ATTR_CHECKED
+        and %00111111
+        ld c,a
+
+.unpressed
+        ld b,(ix + KEYPTN.size)
+.slp    ld a,(iy) : inc iy
+        push bc
+        call sym_prn_4
+        pop bc
+        djnz .slp
+
+        pop bc
+        pop af
+        ret
+
+print_keyboard:
+        ld ix,keyboard_table
+.lp     ld a,(ix)
+        inc a
+        ret z
+
+        ld (ix + KEYPTN.status), 0
+        ld c,KEY_STATUS_UNPRESSED
+        call print_key
+
+        ld de,7
+        add ix,de
+        jr .lp
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; in:
+;;  A - key code
+;; out:
+;;  A - key code or #ff if not finded
+;; IX - struct ptr
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+find_key:
+        ld ix,keyboard_table
+.next   ld c,a
+        ld b,#FF
+.lp     ld de,7
+        ld a,(ix + KEYPTN.code)
+        cp c
+        ret z
+        cp b
+        ret z
+        add ix,de
+        jr .lp
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; in:
+;;  A - key code
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+key_highlight:
+        call find_key
+        inc a
+        ret z
+        dec a
+        push af
+
+        ld (ix + KEYPTN.status), #FF
+        ld c,KEY_STATUS_PRESSED
+        call print_key
+
+        pop af
+        cp KEY_CS
+        jr z,.cs
+        cp KEY_SS
+        jr z,.ss
+        ret
+.cs
+.ss
+        ld de,7
+        add ix,de
+        call find_key.next
+        inc a
+        ret z
+        dec a
+
+        ld (ix + KEYPTN.status), #FF
+        ld c,KEY_STATUS_PRESSED
+        jp print_key
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; in:
+;;  A - key code
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+key_unhighlight:
+        call find_key
+        inc a
+        ret z
+        dec a
+        ld c,KEY_STATUS_UNPRESSED
+        call print_key
+
+        cp KEY_CS
+        jr z,.cs
+        cp KEY_SS
+        jr z,.ss
+        ret
+.cs
+.ss
+        ld de,7
+        add ix,de
+        call find_key.next
+        inc a
+        ret z
+        dec a
+        ld c,KEY_STATUS_UNPRESSED
+        jp print_key
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+old_key DB 0
+
+keyboard_test:
+        call turbo_save
+        call turbo_4x
+        call clear_main_window
+        call clear_test_window
+        call turbo_4x
+
+        DRAW_Window wnd_keytest
+
+        call print_keyboard
+
+
+.lp     halt : halt: call KEYBOARD.keyin
+        ;store pressed key
+        ld c,a
+
+        cp KEY_UP
+        jr z,.skip_shifts_detect
+        cp KEY_DOWN
+        jr z,.skip_shifts_detect
+        cp KEY_LEFT
+        jr z,.skip_shifts_detect
+        cp KEY_RIGHT
+        jr z,.skip_shifts_detect
+
+        ld a,(KEYBOARD.keystat)
+
+        ;is EXTEND?
+        cp KEY_IS_CAPS | KEY_IS_SYMBOL
+        ld b,KEY_CAPS
+        jr z,.smap
+
+        ;is Symbol Shift?
+        cp KEY_IS_SYMBOL
+        ld b,KEY_SS
+        jr z,.smap
+
+        ;is Caps Shift?
+        cp KEY_IS_CAPS
+        ld b,KEY_CS
+        jr z,.smap
+
+.skip_shifts_detect
+        ld b,c
+.smap
+        ld a,c
+        cp #43
+        jr z,.exit
+/*
+        push bc
+        ld de,0 : call SCREEN.gotoXY
+        ld a,b : ld c,#47 : call prn_hex8
+        pop bc
+*/
+        ld a,(old_key)
+        ld c,a
+        ld a,b
+        cp c
+        jr z,.lp
+        ld (old_key),a
+
+        push af
+        ld a,c
+        or a
+        call nz,key_unhighlight
+        pop af
+        or a
+        call nz,key_highlight
+        jr .lp
+
+.exit   ld a,'c' : call key_highlight
+        halt
+        jp print_bottom_logo
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wnd_keytest     WINDOW 2, 10, 30, 18, 0, PAPER_BRIGHT_WHITE | INK_BLACK, PAPER_GREEN | INK_BRIGHT_WHITE, hdr_keytest, txt_keytest
+hdr_keytest     DB MARK_CENTER, " Keyboard Test", 0
+txt_keytest     DB "\n", MARK_CENTER, "Press ", MARK_INK, INK_BRIGHT_YELLOW, "Ctrl+C", MARK_INK, INK_BRIGHT_WHITE, " to exit", 0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+KEYBOARD_TEST_END EQU $

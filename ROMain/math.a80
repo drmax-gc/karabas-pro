@@ -1,0 +1,28 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+	MODULE MATH
+;---------------
+;DEHL = DE * BC
+;---------------
+mul16:  ld hl,0
+        sla e
+        rl d
+        jr nc,1F
+        ld h,b
+        ld l,c
+1       ld a,15
+.loop   add hl,hl
+        rl e
+        rl d
+        jr nc,2F
+        add hl,bc
+        jr nc,2F
+        inc de
+2       dec a
+        jr nz,.loop
+        ret
+	ENDMODULE

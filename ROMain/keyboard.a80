@@ -1,0 +1,238 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+KEY_IS_CAPS     EQU     0x80
+KEY_IS_SYMBOL   EQU     0x40
+KEY_CS          EQU     0x02
+KEY_SS          EQU     0x03
+KEY_TRU         EQU     0x04    ;(CS+3)
+KEY_PGUP        EQU     0x04
+KEY_INV         EQU     0x05    ;(CS+4)
+KEY_PGDN        EQU     0x05
+KEY_CAPS        EQU     0x06    ;(CS+2)
+KEY_EDIT        EQU     0x07    ;(CS+1)
+KEY_LEFT        EQU     0x08    ;(CS+5)
+KEY_RIGHT       EQU     0x09    ;(CS+8)
+KEY_DOWN        EQU     0x0A    ;(CS+6)
+KEY_UP          EQU     0x0B    ;(CS+7)
+KEY_BACK        EQU     0x0C    ;(CS+0)
+KEY_ENTER       EQU     0x0D
+KEY_EXT         EQU     0x0E    ;(SS+CS)
+KEY_TAB         EQU     0x0E    ;(CS+I)
+KEY_GRAPH       EQU     0x0F    ;(CS+9)
+KEY_DEL         EQU     0x0F
+KEY_INS         EQU     0x10    ;(SS+W)
+KEY_HOME        EQU     0x11    ;(SS+Q)
+KEY_END         EQU     0x12    ;(SS+E)
+KEY_SSENT       EQU     0x13    ;(SS+ENTER)
+KEY_SSSP        EQU     0x14    ;(SS+SPACE)
+KEY_CSENT       EQU     0x15    ;(CS+ENTER)
+KEY_BREAK       EQU     0x16    ;(CS+SPACE)
+KEY_SPACE       EQU     0x20
+
+KEY_F1          EQU     0xC0
+KEY_F2          EQU     0xC1
+KEY_F3          EQU     0xC2
+KEY_F4          EQU     0xC3
+KEY_F5          EQU     0xC4
+KEY_F6          EQU     0xC5
+KEY_F7          EQU     0xC6
+KEY_F8          EQU     0xC7
+KEY_F9          EQU     0xC8
+KEY_F10         EQU     0xC9
+KEY_F11         EQU     0xCA
+KEY_F12         EQU     0xCB
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        MODULE KEYBOARD
+
+getKey: call inkey
+        ld a,(lastkey)
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+inkey:  call keyin
+        or a
+        jr nz,inkey1
+        ld (keystat),a
+        ld (lastkey),a
+        ld a,(delay)
+        ld (cnt),a
+        ret
+
+inkey1: ld c,a
+        ld a,(delay)
+        ld b,a
+        ld a,(cnt)
+        cp b
+        jr nz,inkey2
+        ld a,b
+        dec a
+        ld (cnt),a
+        ld a,c
+        jr inkey3
+
+inkey2: dec a
+        ld (cnt),a
+        ld a,#00
+        jr nz,inkey3
+        ld a,(adel)
+        ld (cnt),a
+        ld a,c
+inkey3: ld (lastkey),a
+        ret
+
+keyin   ld hl,keytab
+        ld bc,#FEFE
+.nextrow:
+        ld d,#10
+.nextbit:
+        in e,(c)
+        ld a,e
+        and d
+        jr nz,.nextkey
+        xor a
+        or (hl)
+        jr z,.nextkey
+
+        ld de,40
+        ld b,d
+        in a,(c)
+        bit 5,a
+        jr nz,.no5b
+; key with 5 bit
+        add hl,de
+        add hl,de
+        add hl,de
+        ld a,(hl)
+        ret
+
+.no5b   ld b,#7F
+        in a,(c)
+        rra : rra
+        jr c,.noss             ; SS press?
+;key with SS
+        add hl,de
+        add hl,de
+        ld a,(hl)
+        ret
+
+.noss   ld b,#FE
+        in a,(c)
+        rra
+        jr c,.nocs              ; CS press?
+;key with CS
+        add hl,de
+.nocs   ld a,(hl)
+        ret
+
+.nextkey:
+        inc hl
+        rrc d
+        jr nc,.nextbit
+        rlc b
+        jr c,.nextrow
+
+        ld a,#7E
+        in a,(#FE)
+        rra : rra
+        jr nc,.ss
+
+        ld a,#FE
+        in a,(#FE)
+        rra
+        jr nc,.cs
+
+        xor a
+        ld (keystat),a
+        ret
+
+.cs     ld a,KEY_IS_CAPS
+        ld (keystat),a
+        xor a
+        ret
+
+.ss     ld a,KEY_IS_SYMBOL
+        ld (keystat),a
+        ld a,#FE
+        in a,(#FE)
+        rra
+        jr nc,.ext
+        xor a
+        ret
+
+.ext    ld a,(keystat)
+        or KEY_IS_CAPS
+        ld (keystat),a
+        xor a
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;       KD4 KD3 KD2 KD1 KD0
+;;KA8     V   C   X   Z   CS  65278   #FEFE
+;;KA9     G   F   D   S   A   65022   #FDFE
+;;KA10    T   R   E   W   Q   64510   #FBFE
+;;KA11    5   4   3   2   1   63486   #F7FE
+;;KA12    6   7   8   9   0   61438   #EFFE
+;;KA13    Y   U   I   O   P   57342   #DFFE
+;;KA14    H   J   K   L   EN  49150   #BFFE
+;;KA15    B   N   M   SS  SP  32766   #7FFE
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; F1 F2 F3 F4 F5 F6 F7 F8 F9 F10
+;;  a  b  c  d  e  f  g  h  i  j
+;;............................................................
+;; Ins Del Home End PgUp PgDn
+;;  o   p    k    l   m    n
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+keytab:
+        DB      "vcxz", 0                               ;v c x z cs
+        DB      "gfdsa"                                 ;g f d s a
+        DB      "trewq"                                 ;t r e w q
+        DB      "54321"                                 ;5 4 3 2 1
+        DB      "67890"                                 ;6 7 8 9 0
+        DB      "yuiop"                                 ;y u i o p
+        DB      "hjkl", KEY_ENTER                       ;h j k l ent
+        DB      "bnm", 0, KEY_SPACE                     ;b n m ss sp
+.cs
+; with CS
+        DB      "VCXZ", 0                               ;v c x z cs
+        DB      "GFDSA"                                 ;g f d s a
+        DB      "TREWQ"                                 ;t r e w q
+        DB      KEY_LEFT, 0, 0, 0, KEY_EDIT
+        DB      KEY_DOWN, KEY_UP, KEY_RIGHT, 0, KEY_BACK
+        DB      "YU",KEY_TAB,"OP"                       ;y u i o p
+        DB      "HJKL", KEY_CSENT                       ;h j k l ent
+        DB      "BNM", 0, KEY_BREAK                     ;b n m ss sp
+.ss
+; with SS
+        DB      "/?`:", 0                               ;v c x z cs
+        DB      "}{\\|~"                                ;g f d s a
+        DB      "><", 0, KEY_F12, KEY_F11               ;t r e w q
+        DB      "%$#@!"                                 ;5 4 3 2 1
+        DB      "&'()_"                                 ;6 7 8 9 0
+        DB      "[]", 0, ';"'                           ;y u i o p
+        DB      "^-+=", KEY_SSENT                       ;h j k l ent
+        DB      "*,.", 0, KEY_SSSP                      ;b n m ss sp
+
+.ext
+; with 5 bit
+        DB      0,KEY_F3,0,0,0                          ;v c x z cs
+        DB      KEY_F7,KEY_F6,KEY_F4,0,KEY_F1           ;g f d s a
+        DB      0,0,KEY_F5,0,0                          ;t r e w q
+        DB      0,0,0,0,0                               ;5 4 3 2 1
+        DB      0,0,0,0,0                               ;6 7 8 9 0
+        DB      0,0,KEY_F9,KEY_INS,KEY_DEL              ;y u i o p                
+        DB      KEY_F8,KEY_F10,KEY_HOME,KEY_END,0       ;h j k l ent
+        DB      KEY_F2,KEY_PGDN,KEY_PGUP,0,0            ;b n m ss sp
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+lastkey:        DB 0            ; key code
+adel:           DB 1            ; autorepeat delay
+cnt:            DB 30           ; frames counter
+delay:          DB 30           ; delay after first pressing
+keystat:        DB 0            ; 80 - caps shift; 40 - symbol shift
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        ENDMODULE

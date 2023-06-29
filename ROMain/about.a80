@@ -1,0 +1,34 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+about:  call delay_mute
+
+        call turbo_save
+        call turbo_4x
+        call clear_test_window
+        call clear_main_window
+
+        DRAW_Window wnd_about
+        ld ix,mnu_main
+        ld c,0 : call MENU.print_menu_item.divider
+        ld c,5 : call MENU.print_menu_item.divider
+
+.lp     halt
+        call KEYBOARD.keyin
+        cp KEY_EDIT
+        jr nz,.lp : call MENU.fx_esc
+        jp clear_about_window
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wnd_about       WINDOW 10,13, 22, 11, 0, PAPER_BLACK | INK_BRIGHT_WHITE, PAPER_BRIGHT_WHITE | INK_BLACK, hdr_about, txt_about
+hdr_about       DB MARK_CENTER, "  About", 0
+txt_about       DB "\n"
+                DB MARK_INK, INK_BRIGHT_RED, MARK_CENTER, "ROMain v", STR_VERSION, "\n\n"
+                DB MARK_INK, INK_BLUE, MARK_CENTER, "This SoftWare contains 3rd party code:\n"
+                DB MARK_INK, INK_GREEN, MARK_CENTER, "AYFX by SHIRU (forked)\n"
+                DB MARK_INK, INK_GREEN, MARK_CENTER, "FAT32 by Kowalski\n"
+                DB MARK_INK, INK_GREEN, MARK_CENTER, "SD dri¦er by Koshi\n\n"
+                DB MARK_INK, INK_RED, MARK_CENTER, #7F, "2023 Doctor Max^Global Corp^Phosphene",0
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::

@@ -1,0 +1,169 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+HOBETA_BUFF     EQU #B000       ;512b buffer
+
+load_boot:
+        call delay_mute
+
+        call clear_main_window : call clear_test_window
+        DRAW_Window wnd_boot
+
+        PRINT_String txt_boot_mount
+
+        di
+        ; initialize z-controller
+        call sdcard_zc.init
+        jp nz,.error
+
+        ; initialize fs
+        call fat32.mount
+        jp nz,.error
+
+        PRINT_String txt_ok
+        PRINT_String txt_boot_open
+
+        ld hl,file : call fat32.chroot
+
+        ; open file by fully specified pathname
+        ld de,s_boot_b
+.open   ld hl,file
+        call fat32.chdir
+        jr c,.not_found         ; not found
+        jr nz,.error            ; read error
+
+        PRINT_String txt_ok
+
+        ld hl,(file.fsize.lo)
+        ld de,40960
+        or a : sbc hl,de
+        add hl,de
+        jr nc,.error_too_big
+
+        PRINT_String txt_boot_load
+
+        call RAM.setBootPage
+
+        ;load first block
+        ld de,HOBETA_BUFF
+        ld hl,file
+        call fat32.fread512
+
+        ;validate hobeta
+        ld hl,HOBETA_BUFF : call HOBETA.is_hobeta
+        jr nz,.error_check
+
+        ;check start address
+        ld hl,(HOBETA_BUFF + HOBETA.start)
+        ld a,h : cp #60
+        jr c,.error_check
+
+        ld sp,hl : ex de,hl
+        ;push start address
+        push de
+
+        ;copy block w/o header
+        ld hl,HOBETA_BUFF+17 : ld bc,512-17 : ldir
+
+        ;512b blocks for loading
+        ld a,(HOBETA_BUFF + HOBETA.secsize)
+        srl a
+        adc a,c
+        ld b,a
+
+        ; clear ram
+        ld l,e : ld h,d
+        xor a
+.clear  ld (hl),a : inc l : jr nz,.clear
+        inc h : jr nz,.clear
+
+        ;copy loader block to printer buffer
+        exx
+        ld hl,.loader_begin
+        ld de,#5B00
+        ;push loader address
+        push de
+        ld bc,.loader_end - .loader_begin
+        ldir
+        ;copy basic sysvars
+        ld hl,sysvars
+        ld de,#5C00
+        ld bc,368
+        ldir
+        exx
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+.error  PRINT_String txt_failed : jr .exit
+
+.not_found
+        PRINT_String txt_boot_not_found : jr .exit
+
+.error_too_big
+        PRINT_String txt_boot_too_big : jr .exit
+
+.error_check
+        call RAM.setPixPage
+        call RAM.setAttrPage
+        PRINT_String txt_boot_file_error
+.exit
+        ;delay
+        ld b,#40 : ei : halt : djnz $-1
+        call clear_load_window
+        call setIM2
+        jp main_loop
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        ;start loader block
+.loader_begin
+.ldlp   push bc
+        push de
+        ld hl,file
+        call fat32.fread512
+        pop de
+        ld hl,512 : add hl,de : ex de,hl
+        pop bc
+        djnz .ldlp
+
+        call PALETTE.zx
+
+        ;copy current page(7) to page 0
+        ld hl,#C000 : ld d,l : ld e,l
+        ld bc,#4000
+        ldir
+
+        ld bc,CMR1
+        xor a
+        out (c),a
+        out (#FE),a
+        ld b,high CMR0
+        or #10
+        out (c),a
+
+        ;clear attributes
+        ld hl,#5800,de,#5801,bc,#0300-1
+        ld (hl),l : ldir
+
+        ld a,#3F : ld i,a : im 1
+        ld iy,#5C3A
+        ld hl,#0038
+        exx
+        ei
+        ret
+        ;jp 15649
+.loader_end
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+wnd_boot                WINDOW 6,14, 26, 12, 0, PAPER_BLACK | INK_BRIGHT_WHITE, PAPER_BRIGHT_WHITE | INK_BLACK, hdr_boot, 0
+hdr_boot                DB MARK_CENTER, "Loading hobeta", 0
+txt_boot_mount          DB MARK_INK, INK_BLUE, "\nMounting SD card...", 0
+txt_boot_open           DB MARK_INK, INK_BLUE, "Opening "
+                        DB MARK_INK, INK_CYAN, "karabas_boot.$c"
+                        DB MARK_INK, INK_BLUE, "....", 0
+txt_boot_load           DB MARK_INK, INK_BLUE, "Loading...", 0
+txt_boot_too_big        DB MARK_INK, INK_RED, "File too big!", 0
+txt_boot_file_error     DB MARK_INK, INK_RED, "File error!", 0
+txt_boot_not_found      DB MARK_INK, INK_RED, "File not found!", 0

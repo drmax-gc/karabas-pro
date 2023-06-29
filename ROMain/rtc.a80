@@ -1,0 +1,55 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+RTC_AS                  EQU #FF
+RTC_DS                  EQU #DF
+
+RTC_SECONDS	        EQU 0
+RTC_SECONDS_ALARM	EQU 1
+RTC_MINUTES		EQU 2
+RTC_MINUTES_ALARM	EQU 3
+RTC_HOURS		EQU 4
+RTC_HOURS_ALARM		EQU 5
+RTC_DAY_OF_WEEK		EQU 6
+RTC_DAY_OF_MONTH	EQU 7
+RTC_MONTH		EQU 8
+RTC_YEAR		EQU 9
+
+RTC_REG_A		EQU 10
+RTC_REG_B		EQU 11
+RTC_REG_C		EQU 12
+RTC_REG_D		EQU 13
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        MODULE RTC
+;in:
+;   C - RTC cell
+;out:
+;   A - value
+get:    ld a,c
+        out (RTC_AS),a
+        in a,(RTC_DS)
+        ret
+;in:
+;   C - RTC cell
+;   A - value
+set:    exa
+        ld a,c
+        out (RTC_AS),a
+        exa
+        out (RTC_DS),a
+        ret
+;in:
+;   C - start RTC cell
+;   B - counter
+;  HL - buffer
+geti:   call get
+        ld (hl),a : inc hl
+        inc c
+        djnz geti
+        ret
+        ENDMODULE

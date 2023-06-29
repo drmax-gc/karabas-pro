@@ -1,0 +1,235 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+AYFX_KEY        EQU 0
+AYFX_ENTER      EQU 1
+AYFX_ESC        EQU 1
+AYFX_KEYSKIP	EQU 4
+AYFX_LEFTRIGHT  EQU 2
+AYFX_CENTER     EQU 3
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+sound_test:
+        call turbo_save
+        call turbo_4x
+        call clear_test_window
+        call clear_main_window
+
+        DRAW_Window wnd_sound_test
+        xor a
+        ld ix,mnu_sound
+        ld (ix + MENU.cur_item),a
+        jp MENU.menu
+
+sound_test_loop:
+        ld ix,wnd_sound_test : call WINDOW.setWindowVariables
+        ld ix,mnu_sound
+        jp MENU.menu
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+ay_test:
+        DRAW_Window wnd_ay_test
+
+        PRINT_String txt_ay_left
+        ld a,AYFX_LEFTRIGHT : ld e,0 : call AYFX.PlayChannel
+        ld b,64 : halt : djnz $-1
+        PRINT_String txt_ay_ok
+        ld b,32 : halt : djnz $-1
+
+        PRINT_String txt_ay_right
+        ld a,AYFX_LEFTRIGHT : ld e,2 : call AYFX.PlayChannel
+        ld b,64 : halt : djnz $-1
+        PRINT_String txt_ay_ok
+        ld b,32 : halt : djnz $-1
+
+        PRINT_String txt_ay_middle
+        ld a,AYFX_CENTER : ld e,1 : call AYFX.PlayChannel
+        ld b,64 : halt : djnz $-1
+        PRINT_String txt_ay_ok
+        ld b,48 : halt : djnz $-1
+
+        call clear_ay_window
+        jp sound_test_loop
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+beep:   ld d,a
+        ld e,2
+        ld l,0
+.lp0
+        ld a,l
+        xor #10
+        ld l,a
+        out (#FE),a
+        ld b,d
+.lp2    ld c,8
+.lp1    dec c
+        jr nz,.lp1
+        djnz .lp2
+        dec e
+        jr nz,.lp0
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+beeper_test:
+        DRAW_Window wnd_beeper_test
+        ;delay for playing key sound
+        ld b,4 : halt : djnz $-1
+        call AYFX.mute
+
+        call setIM2_C9
+
+        exx
+        ld bc,PORT_TURBO
+        ld a,M_TURBO_2X : out (c),a
+        exx
+
+.loop   ld a,c
+        push af
+        call beep
+        pop af
+        add a,-122
+        ld c,a
+        exx : ld a,M_TURBO_2X : out (c),a : exx
+
+        ld a,#7E
+        in a,(#FE)
+        rrca
+        jr c,.loop
+
+        call setIM2
+
+        call turbo_4x
+        ei
+        call clear_covox_window
+        jp sound_test_loop
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+covox_test:
+        DRAW_Window wnd_covox_test
+        ;delay for playing key sound
+        ld b,4 : halt : djnz $-1
+        call AYFX.mute
+
+        call setIM2_C9
+
+        ld bc,CMR1
+        ld a,CMR1_80DS | CMR1_NOROM | CMR1_SCR
+        out (c),a
+        ld b,high CMR0
+        ld a,CMR0_PLEKR | 6
+        out (c),a
+
+        ;configure i8255
+        ld a,I8255_CTRL_MODE_IO | I8255_CTRL_PORT_B | I8255_CTRL_PORT_Cu | I8255_CTRL_PORT_Cl
+        out (I8255_CTRL),a
+
+        xor a : ld l,a : ld h,a : ld e,a : ld b,a
+;generate pseudo sinus table
+        ld d,l
+        ld c,15
+        exx
+        ld hl,BUFF
+        push hl
+sinmklp exx
+        add hl,de
+        ld a,h
+        cp 128
+        ex de,hl
+        jr nc,sinmk0
+        add hl,bc
+        jr sinmk1
+sinmk0  sbc hl,bc
+sinmk1  ex de,hl
+        ld a,h
+        exx
+        ld (hl),a : inc l
+        jr nz,sinmklp
+
+        ex de,hl
+        pop hl
+sinmk2  ld a,(hl)
+        ld (de),a
+        inc l
+        dec e
+        jr nz,sinmk2
+
+        ex de,hl
+
+        exx
+        ld hl,#0000
+        ld de,#0180
+        ld bc,PORT_TURBO
+        exx
+
+        ld ix,0
+        ld de,#FFFF
+        ld bc,0
+
+.lp     exx
+        ld a,M_TURBO_2X : out (c),a
+        add hl,de
+        ld a,h
+        exx
+        ld l,a
+        exa
+        ld a,(hl)
+        or a
+        sbc a,c
+        jr nc,.ncC
+        xor a
+.ncC    out (I8255_PORT_C),a
+        exa
+        ld l,a
+        ld a,(hl)
+        or a
+        sbc a,b
+        jr nc,.ncB
+        xor a
+.ncB    out (I8255_PORT_B),a
+
+        add ix,de
+        ld a,hx
+        or a
+        jr nz,.ni
+
+        ;neg DE
+        ld a,e : cpl : ld e,a   ;4+4+4
+        ld a,d : cpl : ld d,a   ;4+4+4
+        inc de                  ;6
+        xor a                   ;4
+
+.ni     ld c,a
+        ld a,hx
+        cpl
+        ld b,a
+
+        ld a,#7E
+        in a,(#FE)
+        rrca
+        jr c,.lp
+
+        call RAM.setAttrPage
+
+        call setIM2
+
+        call turbo_4x
+        ei
+        call clear_covox_window
+        jp sound_test_loop
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+wnd_sound_test  WINDOW 22,12, 10,6, 0, PAPER_BRIGHT_WHITE | INK_BLACK, PAPER_CYAN | INK_BRIGHT_WHITE, hdr_sound_test, 0
+wnd_covox_test  WINDOW 16,24, 16,4, 0, PAPER_BRIGHT_WHITE | INK_BLACK, PAPER_GREEN | INK_BRIGHT_WHITE, 0, txt_covox_test
+wnd_beeper_test WINDOW 16,24, 16,4, 0, PAPER_BRIGHT_WHITE | INK_BLACK, PAPER_GREEN | INK_BRIGHT_WHITE, 0, txt_beeper_test
+wnd_ay_test     WINDOW 16,20, 16,8, 0, PAPER_BRIGHT_WHITE | INK_BLACK, PAPER_GREEN | INK_BRIGHT_WHITE, 0, txt_ay_test
+hdr_sound_test  DB MARK_CENTER, " Sound Test", 0
+txt_covox_test  DB "\n", MARK_CENTER, MARK_INK, INK_BRIGHT_YELLOW, MARK_LINK, LINK_MSG_NOW_PLAYING, "covox", 0
+txt_beeper_test DB "\n", MARK_CENTER, MARK_INK, INK_BRIGHT_YELLOW, MARK_LINK, LINK_MSG_NOW_PLAYING, "beeper", 0
+txt_ay_test     DB "\n", MARK_CENTER, MARK_INK, INK_BRIGHT_YELLOW, MARK_LINK, LINK_MSG_NOW_PLAYING, "AY\n\n", 0
+txt_ay_left     DB MARK_INK, INK_BRIGHT_WHITE, MARK_LINK, LINK_MSG_CHANNEL, "left................", 0
+txt_ay_right    DB MARK_INK, INK_BRIGHT_WHITE, MARK_LINK, LINK_MSG_CHANNEL, "right...............", 0
+txt_ay_middle   DB MARK_INK, INK_BRIGHT_WHITE, MARK_LINK, LINK_MSG_CHANNEL, "middle..............", 0
+txt_ay_ok       DB MARK_INK, INK_BRIGHT_GREEN, "Ok\n", 0

@@ -1,0 +1,69 @@
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;                     ROMain for Karabas PRO                 ::
+;;                         by Doctor Max                      ::
+;;                         (c)2021-2023                       ::
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+ISRflagIX       EQU #FF
+
+ISRflagJP       DB 0
+
+ISRhandler:
+        push af                         ;11t
+        ld a,(ISRflagJP)                ;13t
+        or a                            ;4t
+        jr nz,ISRhandlerJP              ;12/7t
+
+        push bc, de, hl, ix, iy         ;63t
+        exx : ex af,af'                 ;8t
+        push af, bc, de, hl             ;44t
+;;
+        call AYFX.Frame
+;;
+        pop hl, de, bc, af              ;40t
+        exx : ex af,af'                 ;4t
+        pop iy, ix, hl, de, bc, af      ;68t
+        ei                              ;4t
+        ret                             ;10t
+
+ISRhandlerJP:
+        pop af                          ;10t
+        ; restore stack
+        pop af                          ;10t
+        jp (iy)                         ;8t
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+setIM2: di
+        ld hl,#7E00
+        ld a,#7F
+        ld (hl),a
+        inc l
+        jr nz,$-2
+        inc h
+        ld (hl),a
+        dec a
+        ld i,a
+        ld a,#C3
+        ld (#7F7F),a
+        ld hl,ISRhandler
+        ld (#7F80),hl
+        im 2
+        ei
+        ret
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+setIM2_C9:
+        di
+        ld a,#7F
+        ld (#7EFF),a
+        ld (#7F00),a
+        dec a
+        ld i,a
+        ld a,#C9
+        ld (#7F7F),a
+        im 2
+        ei
+        ret
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::

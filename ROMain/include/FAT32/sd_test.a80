@@ -1,0 +1,53 @@
+			device zxspectrum128
+			bplist "bpx.ini"
+
+			org $8000
+
+			include "sdcard_zc.asm"
+			; in: bcde = sector lba, hl -> dest
+			; out: zf reset = no error
+__read_sector		equ sdcard_zc.read_sector
+
+			include "fat32.asm"
+
+start			di
+
+			; initialize z-controller
+			call sdcard_zc.init
+
+			; initialize fs
+			call fat32.mount
+			jr nz, .error
+
+			; open file by fully specified pathname
+			ld hl, file
+			ld de, s_boot_b
+			call fat32.fopen
+			jr c, .error ; not found
+			jr nz, .error ; read error
+
+			; read first 512 bytes to screen just to test
+			ld hl, file
+			ld de, $4000
+			call fat32.fread512
+			jr nz, .error
+
+			ld hl,(file.fsize.lo)
+
+			ld a, 4: out ($fe), a: halt
+
+.error			ld a, 2: out ($fe), a: halt
+
+; ----------------------------------------------------------------
+
+s_boot_b		db '/boot.$C', 0
+
+file			fat32.FAT32_FILE
+
+			; required vars for fat32 to work
+fs			fat32.FAT32_FS
+__fn_buffer		ds 256, 0
+
+
+			savesna "sd_test.sna", start
+			labelslist "sd_test.labels"
